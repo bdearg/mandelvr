@@ -24,10 +24,6 @@ using namespace std;
 using namespace glm;
 
 
-
-
-
-
 class Application : public EventCallbacks
 {
 
@@ -36,25 +32,12 @@ public:
 	WindowManager * windowManager = nullptr;
 
 	// Our shader program
-	std::shared_ptr<Program> prog,prog2;
+	std::shared_ptr<Program> pixshader;
 
-	// Shape to be used (from obj file)
-	shared_ptr<Shape> shape;
-	
 	//camera
 	camera mycam;
 
-	//texture for sim
-	GLuint Texture;
-	GLuint Texture2,Texture3,Texture4,FBOtex,fb,depth_rb;
-
-	GLuint VertexArrayIDBox, VertexBufferIDBox, VertexBufferTex;
-	
-	// Contains vertex information for OpenGL
-	GLuint VertexArrayID;
-
-	// Data necessary to give our triangle to OpenGL
-	GLuint VertexBufferID;
+	GLuint VertexArrayUnitPlane, VertexBufferUnitPlane;
 
 	void keyCallback(GLFWwindow *window, int key, int scancode, int action, int mods)
 	{
@@ -135,24 +118,18 @@ public:
 		//This is the standard:
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA); 
 
-
-		prog2 = make_shared<Program>();
-		prog2->setVerbose(true);
-		prog2->setShaderNames(resourceDirectory + "/vert.glsl", resourceDirectory + "/frag_nolight.glsl");
-		if (!prog2->init())
+		pixshader = make_shared<Program>();
+		pixshader->setVerbose(true);
+		pixshader->setShaderNames(resourceDirectory + "/passthru.vs", resourceDirectory + "/IQ_mandelbulb_derivative.fs");
+		if (!pixshader->init())
 		{
 			std::cerr << "One or more shaders failed to compile... exiting!" << std::endl;
 			exit(1);
 		}
-		prog2->init();
-		prog2->addUniform("P");
-		prog2->addUniform("V");
-		prog2->addUniform("M");
-		prog2->addAttribute("vertPos");
-		prog2->addAttribute("vertTex");
-
-	
-	
+		pixshader->init();
+		pixshader->addAttribute("vertPos");
+		pixshader->addUniform("resolution");
+		pixshader->addUniform("time");
 
 
 	}
@@ -160,57 +137,31 @@ public:
 	void initGeom(const std::string& resourceDirectory)
 	{
 
-		glGenVertexArrays(1, &VertexArrayIDBox);
-		glBindVertexArray(VertexArrayIDBox);
+		glGenVertexArrays(1, &VertexArrayUnitPlane);
+		glBindVertexArray(VertexArrayUnitPlane);
 
 		//generate vertex buffer to hand off to OGL
-		glGenBuffers(1, &VertexBufferIDBox);
+		glGenBuffers(1, &VertexBufferUnitPlane);
 		//set the current state to focus on our vertex buffer
-		glBindBuffer(GL_ARRAY_BUFFER, VertexBufferIDBox);
+		glBindBuffer(GL_ARRAY_BUFFER, VertexBufferUnitPlane);
 
-		GLfloat *ver = new GLfloat[10000 * 18];
+		GLfloat *ver = new GLfloat[6 * 3];
 		// front
 		int verc = 0;
 
 		ver[verc++] = 0.0, ver[verc++] = 0.0, ver[verc++] = 0.0;
-		ver[verc++] = 1.0, ver[verc++] = 0.0, ver[verc++] = 0.0;
-		ver[verc++] = 0.0, ver[verc++] = 1.0, ver[verc++] = 0.0;
-		ver[verc++] = 1.0, ver[verc++] = 0.0, ver[verc++] = 0.0;
 		ver[verc++] = 1.0, ver[verc++] = 1.0, ver[verc++] = 0.0;
 		ver[verc++] = 0.0, ver[verc++] = 1.0, ver[verc++] = 0.0;
-
+		ver[verc++] = 0.0, ver[verc++] = 0.0, ver[verc++] = 0.0;
+		ver[verc++] = 1.0, ver[verc++] = 0.0, ver[verc++] = 0.0;
+		ver[verc++] = 1.0, ver[verc++] = 1.0, ver[verc++] = 0.0;
 
 		//actually memcopy the data - only do this once
-		glBufferData(GL_ARRAY_BUFFER, 18 * sizeof(float), ver, GL_STATIC_DRAW);
+		glBufferData(GL_ARRAY_BUFFER, 6 * 3 * sizeof(float), ver, GL_STATIC_DRAW);
 		//we need to set up the vertex array
 		glEnableVertexAttribArray(0);
 		//key function to get up how many elements to pull out at a time (3)
 		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (void*)0);
-
-
-		//generate vertex buffer to hand off to OGL
-		glGenBuffers(1, &VertexBufferTex);
-		//set the current state to focus on our vertex buffer
-		glBindBuffer(GL_ARRAY_BUFFER, VertexBufferTex);
-
-		float t = 1. / 100.;
-		GLfloat *cube_tex = new GLfloat[10000 * 12];
-		int texc = 0;
-
-		cube_tex[texc++] = 0, cube_tex[texc++] = 0;
-		cube_tex[texc++] = 1, cube_tex[texc++] = 0;
-		cube_tex[texc++] = 0, cube_tex[texc++] = 1;
-		cube_tex[texc++] = 1, cube_tex[texc++] = 0;
-		cube_tex[texc++] = 1, cube_tex[texc++] = 1;
-		cube_tex[texc++] = 0, cube_tex[texc++] = 1;
-
-		//actually memcopy the data - only do this once
-		glBufferData(GL_ARRAY_BUFFER, 12 * sizeof(float), cube_tex, GL_STATIC_DRAW);
-		//we need to set up the vertex array
-		glEnableVertexAttribArray(2);
-		//key function to get up how many elements to pull out at a time (3)
-		glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 0, (void*)0);
-
 
 	}
 
@@ -221,29 +172,18 @@ public:
 		glfwGetFramebufferSize(windowManager->getHandle(), &width, &height);
 		float aspect = width / (float)height;
 		glViewport(0, 0, width, height);
-
-		auto P = std::make_shared<MatrixStack>();
-		P->pushMatrix();	
-		P->perspective(70., width, height, 0.1, 100.0f);
-		glm::mat4 M,V,S,T;		
-		
-		V = mycam.process();
-		V = glm::mat4(1);
 		
 		// Clear framebuffer.
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);	
 
-		prog2->bind();
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, FBOtex);
-		M = glm::scale(glm::mat4(1),glm::vec3(1.2,1,1)) * glm::translate(glm::mat4(1), glm::vec3(-0.5, -0.5, -1));
-		glUniformMatrix4fv(prog2->getUniform("P"), 1, GL_FALSE, glm::value_ptr(P->topMatrix()));
-		glUniformMatrix4fv(prog2->getUniform("V"), 1, GL_FALSE, &V[0][0]);
-		glUniformMatrix4fv(prog2->getUniform("M"), 1, GL_FALSE, &M[0][0]);
-		glBindVertexArray(VertexArrayIDBox);
+		pixshader->bind();
+		glUniform2f(pixshader->getUniform("resolution"), static_cast<float>(width), static_cast<float>(width));
+		glUniform1f(pixshader->getUniform("time"), glfwGetTime());
+
+		glBindVertexArray(VertexArrayUnitPlane);
 		glDrawArrays(GL_TRIANGLES, 0, 6);
 
-		prog2->unbind();
+		pixshader->unbind();
 		
 	}
 

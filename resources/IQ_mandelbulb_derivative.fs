@@ -1,18 +1,11 @@
-// Created by inigo quilez - iq/2013
-// License Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported License.
+#version 430 core
 
-// The source code for these videos from 2009: 
-// https://www.youtube.com/watch?v=eKUh4nkmQbc
-// https://www.youtube.com/watch?v=erS6SKqtXLY
-
-// More info here: http://iquilezles.org/www/articles/mandelbulb/mandelbulb.htm
-
-// See https://www.shadertoy.com/view/MdfGRr to see the Julia counterpart
-
-
-// make this 1 for slow machines (image quality will go down)
 #define AA 2
 
+uniform vec2 resolution;
+uniform float time;
+
+out vec4 color;
 
 vec2 isphere( in vec4 sph, in vec3 ro, in vec3 rd )
 {
@@ -148,8 +141,8 @@ vec3 render( in vec2 p, in mat4 cam )
 	// ray setup
     const float fle = 1.5;
 
-    vec2  sp = (-iResolution.xy + 2.0*p) / iResolution.y;
-    float px = 2.0/(iResolution.y*fle);
+    vec2  sp = (-resolution.xy + 2.0*p) / resolution.y;
+    float px = 2.0/(resolution.y*fle);
 
     vec3  ro = vec3( cam[0].w, cam[1].w, cam[2].w );
 	vec3  rd = normalize( (cam*vec4(sp,fle,0.0)).xyz );
@@ -211,15 +204,15 @@ vec3 render( in vec2 p, in mat4 cam )
 	return sqrt( col );
 }
     
-void mainImage( out vec4 fragColor, in vec2 fragCoord )
+void main()
 {
-    float time = iTime*.1;
+    float alttime = time*.1;
 
     // camera
-	float di = 1.4+0.1*cos(.29*time);
-	vec3  ro = di * vec3( cos(.33*time), 0.8*sin(.37*time), sin(.31*time) );
+	float di = 1.4+0.1*cos(.29*alttime);
+	vec3  ro = di * vec3( cos(.33*alttime), 0.8*sin(.37*alttime), sin(.31*alttime) );
 	vec3  ta = vec3(0.0,0.1,0.0);
-	float cr = 0.5*cos(0.1*time);
+	float cr = 0.5*cos(0.1*alttime);
 
     // camera matrix
     vec3 cw = normalize(ta-ro);
@@ -230,16 +223,16 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
 
     // render
     #if AA<2
-	vec3 col = render(  fragCoord, cam );
+	vec3 col = render(  gl_FragCoord.xy, cam );
     #else
     vec3 col = vec3(0.0);
     for( int j=0; j<AA; j++ )
     for( int i=0; i<AA; i++ )
     {
-	    col += render( fragCoord + (vec2(i,j)/float(AA)), cam );
+	    col += render( gl_FragCoord .xy+ (vec2(i,j)/float(AA)), cam );
     }
 	col /= float(AA*AA);
     #endif
 
-	fragColor = vec4( col, 1.0 );
+	color = vec4( col, 1.0 );
 }
