@@ -16,12 +16,13 @@ include_directories("ext/glad/include")
 # Set the executable.
 add_executable(${CMAKE_PROJECT_NAME} ${SOURCES} ${HEADERS} ${GLSL})
 
-
+# We aren't using it, and it complicates windows compilation
+set(GLFW_VULKAN_STATIC OFF)
 
 # Add GLFW
 # Get the GLFW environment variable.
 # There should be a CMakeLists.txt in the specified directory.
-set(GLFW_DIR "$ENV{GLFW_DIR}")
+set(GLFW_DIR "$ENV{GLFW_DIR}" CACHE PATH "Directory to check for GLFW - if unset, consults the package finding system")
 if(GLFW_DIR)
   message(STATUS "GLFW environment variable found")
 
@@ -53,12 +54,10 @@ else()
   endif()
 endif()
 
-
-
 # Add GLM
 # Get the GLM environment variable. Since GLM is a header-only library, we
 # just need to add it to the include directory.
-set(GLM_INCLUDE_DIR "$ENV{GLM_INCLUDE_DIR}")
+set(GLM_INCLUDE_DIR "$ENV{GLM_INCLUDE_DIR}" CACHE PATH "Directory to check for GLM")
 if(GLM_INCLUDE_DIR)
   include_directories(${GLM_INCLUDE_DIR})
   message(STATUS "GLM environment variable found")
@@ -68,14 +67,18 @@ else()
   message(STATUS "GLM environment variable `GLM_INCLUDE_DIR` not found, GLM must be installed with the system")
 endif()
 
-
-
 # OS specific options and libraries
 if(WIN32)
   # c++0x is enabled by default.
   # -Wall produces way too many warnings.
   # -pedantic is not supported.
   target_link_libraries(${CMAKE_PROJECT_NAME} opengl32.lib)
+  
+  # Copy the resources folder due to how the executables are placed
+  # in windows builds
+  add_custom_command(TARGET ${CMAKE_PROJECT_NAME} POST_BUILD
+    COMMAND cmake -E copy_directory
+    "${CMAKE_SOURCE_DIR}/resources" "${CMAKE_BINARY_DIR}/resources")
 else()
   # Enable all pedantic warnings.
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x -Wall -pedantic")
