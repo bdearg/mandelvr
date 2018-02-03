@@ -4,6 +4,7 @@
 	& Ian Dunn, Christian Eckhardt
 */
 #include <iostream>
+#include <chrono>
 #include <glad/glad.h>
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -22,6 +23,8 @@
 #include <glm/gtc/matrix_transform.hpp>
 using namespace std;
 using namespace glm;
+
+#define FPSBUFSIZE 15
 
 
 class Application : public EventCallbacks
@@ -206,7 +209,7 @@ int main(int argc, char **argv)
 	// and GL context, etc.
 
 	WindowManager *windowManager = new WindowManager();
-	windowManager->init(640, 480);
+	windowManager->init(2160, 1200);
 	windowManager->setEventCallbacks(application);
 	application->windowManager = windowManager;
 
@@ -216,17 +219,27 @@ int main(int argc, char **argv)
 	application->init(resourceDir);
 	application->initGeom(resourceDir);
 
+	chrono::microseconds fpsbuffer[FPSBUFSIZE];
+	size_t fpsoff = 0;
+
+	
 	// Loop until the user closes the window.
 	while (! glfwWindowShouldClose(windowManager->getHandle()))
 	{
+		auto start = chrono::steady_clock::now();
 		// Render scene.
-
 		application->render();
 		
 		// Swap front and back buffers.
 		glfwSwapBuffers(windowManager->getHandle());
+		auto stop = chrono::steady_clock::now();
 		// Poll for and process events.
 		glfwPollEvents();
+
+		fpsbuffer[(++fpsoff) % FPSBUFSIZE] = chrono::duration_cast<chrono::microseconds>(stop - start);
+		fpsoff %= FPSBUFSIZE;
+		double avgfps = 0.0; for (int i = 0; i < FPSBUFSIZE; i++) { avgfps += 1e6 / fpsbuffer[i].count(); } avgfps /= FPSBUFSIZE;
+		cout << "Frame: " << fpsbuffer[fpsoff].count() / 1e3 << "ms, FPS: " << 1e6 / fpsbuffer[fpsoff].count() << ", FPS(avg): " << avgfps << endl;
 	}
 
 	// Quit program.
