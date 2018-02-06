@@ -21,6 +21,7 @@
 // value_ptr for glm
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <GLFW/glfw3.h>
 using namespace std;
 using namespace glm;
 
@@ -240,6 +241,10 @@ int main(int argc, char **argv)
 		fpsoff %= FPSBUFSIZE;
 		double avgfps = 0.0; for (int i = 0; i < FPSBUFSIZE; i++) { avgfps += 1e6 / fpsbuffer[i].count(); } avgfps /= FPSBUFSIZE;
 		cout << "Frame: " << fpsbuffer[fpsoff].count() / 1e3 << "ms, FPS: " << 1e6 / fpsbuffer[fpsoff].count() << ", FPS(avg): " << avgfps << endl;
+		
+		int width, height;
+		glfwGetFramebufferSize(windowManager->getHandle(), &width, &height);
+		cout << "w: " << width << " h: " << height << endl;
 	}
 
 	// Quit program.
