@@ -1,26 +1,15 @@
 #version 430 core
 
-#define AA 2
+#define AA 1
+#define STEPLENGTH 10.
+#define STEPCOUNT 128
 
 uniform vec2 resolution;
 uniform float time;
 
 out vec4 color;
 
-vec2 isphere( in vec4 sph, in vec3 ro, in vec3 rd )
-{
-    vec3 oc = ro - sph.xyz;
-    
-	float b = dot(oc,rd);
-	float c = dot(oc,oc) - sph.w*sph.w;
-    float h = b*b - c;
-    
-    if( h<0.0 ) return vec2(-1.0);
-
-    h = sqrt( h );
-
-    return -b + vec2(-h,h);
-}
+/*
 
 float map( in vec3 p, out vec4 resColor )
 {
@@ -70,6 +59,52 @@ float map( in vec3 p, out vec4 resColor )
     resColor = vec4(m,trap.yzw);
 
     return 0.25*log(m)*sqrt(m)/dz;
+}*/
+
+vec2 isphere( in vec4 sph, in vec3 ro, in vec3 rd )
+{
+    vec3 oc = ro - sph.xyz;
+    
+	float b = dot(oc,rd);
+	float c = dot(oc,oc) - sph.w*sph.w;
+    float h = b*b - c;
+    
+    if( h<0.0 ) return vec2(-1.0);
+
+    h = sqrt( h );
+
+    return -b + vec2(-h,h);
+}
+
+float map( in vec3 p, out vec4 resColor )
+{
+    vec3 w = p;
+    float m = dot(w,w);
+
+    vec4 trap = vec4(abs(w),m);
+	float dz = 1.0;
+    
+    
+	for( int i=0; i<4; i++ )
+    {
+        dz = 8.0*pow(sqrt(m),7.0)*dz + 1.0;
+		//dz = 8.0*pow(m,3.5)*dz + 1.0;
+        
+        float r = length(w);
+        float b = 8.0*acos( w.y/r);
+        float a = 8.0*atan( w.x, w.z );
+        w = p + pow(r,8.0) * vec3( sin(b)*sin(a), cos(b), sin(b)*cos(a) );
+        
+        trap = min( trap, vec4(abs(w),m) );
+
+        m = dot(w,w);
+		if( m > 256.0 )
+            break;
+    }
+
+    resColor = vec4(m,trap.yzw);
+
+    return 0.25*log(m)*sqrt(m)/dz;
 }
 
 float intersect( in vec3 ro, in vec3 rd, out vec4 rescol, in float px )
@@ -90,7 +125,7 @@ float intersect( in vec3 ro, in vec3 rd, out vec4 rescol, in float px )
 	for( int i=0; i<128; i++  )
     { 
         vec3 pos = ro + rd*t;
-        float th = 0.25*px*t;
+        float th = STEPLENGTH*px*t;
 		float h = map( pos, trap );
 		if( t>dis.y || h<th ) break;
         t += h;
@@ -123,6 +158,7 @@ float softshadow( in vec3 ro, in vec3 rd, in float k )
 
 vec3 calcNormal( in vec3 pos, in float t, in float px )
 {
+  return vec3(1.0, 0.0, 0.0);
     vec4 tmp;
     vec2 eps = vec2( 0.25*px, 0.0 );
 	return normalize( vec3(
@@ -179,7 +215,7 @@ vec3 render( in vec2 p, in mat4 cam )
         float fac = clamp(1.0+dot(rd,nor),0.0,1.0);
 
         // sun
-        float sha1 = softshadow( pos+0.001*nor, light1, 32.0 );
+        float sha1 = 1.0; //softshadow( pos+0.001*nor, light1, 32.0 );
         float dif1 = clamp( dot( light1, nor ), 0.0, 1.0 )*sha1;
         float spe1 = pow( clamp(dot(nor,hal),0.0,1.0), 32.0 )*dif1*(0.04+0.96*pow(clamp(1.0-dot(hal,light1),0.0,1.0),5.0));
         // bounce
