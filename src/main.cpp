@@ -27,6 +27,14 @@ using namespace glm;
 
 #define FPSBUFSIZE 15
 
+// VR defaults
+#if 0
+#define FRAMEWIDTH  2160
+#define FRAMEHEIGHT 1200
+#else
+#define FRAMEWIDTH  600
+#define FRAMEHEIGHT 480
+#endif
 
 class Application : public EventCallbacks
 {
@@ -40,6 +48,8 @@ public:
 
 	//camera
 	camera mycam;
+	
+	GLfloat intersectStepSize = 10.0;
 
 	GLuint VertexArrayUnitPlane, VertexBufferUnitPlane;
 
@@ -121,6 +131,14 @@ public:
 		//next function defines how to mix the background color with the transparent pixel in the foreground. 
 		//This is the standard:
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA); 
+		
+		mat4 look = lookAt(
+		  vec3(0, 0, 2),// eye
+		  vec3(0, 0, 0),// target
+		  vec3(0, 1, 0)// up
+		  );
+		vec4 eyepos = look * vec4(0, 0, 0, 1);
+		mycam.pos = vec3(eyepos.x, eyepos.y, eyepos.z);
 
 		pixshader = make_shared<Program>();
 		pixshader->setVerbose(true);
@@ -134,6 +152,8 @@ public:
 		pixshader->addAttribute("vertPos");
 		pixshader->addUniform("resolution");
 		pixshader->addUniform("time");
+		pixshader->addUniform("view");
+		pixshader->addUniform("intersectStepSize");
 
 
 	}
@@ -177,12 +197,17 @@ public:
 		float aspect = width / (float)height;
 		glViewport(0, 0, width, height);
 		
+		// love too couple input processing with state polling
+		mat4 view = transpose(mycam.process());
+		
 		// Clear framebuffer.
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);	
 
 		pixshader->bind();
 		glUniform2f(pixshader->getUniform("resolution"), static_cast<float>(width), static_cast<float>(width));
 		glUniform1f(pixshader->getUniform("time"), glfwGetTime());
+		glUniform1f(pixshader->getUniform("intersectStepSize"), 0.25);
+		glUniformMatrix4fv(pixshader->getUniform("view"), 1, GL_FALSE, value_ptr(view));
 
 		glBindVertexArray(VertexArrayUnitPlane);
 		glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -192,6 +217,36 @@ public:
 	}
 
 };
+
+struct FPSdata {
+  bool dataInit = false;
+	chrono::microseconds fpsbuffer[FPSBUFSIZE];
+	size_t fpsoff = 0;
+  chrono::steady_clock::time_point start, stop;
+};
+
+void startFrameCapture(FPSdata &dt)
+{
+	dt.start = chrono::steady_clock::now(); 
+}
+
+void showFPS(FPSdata &dt)
+{
+    dt.stop = chrono::steady_clock::now();
+    auto frame_duration = chrono::duration_cast<chrono::microseconds>(dt.stop - dt.start);
+    if(!dt.dataInit)
+    {
+      for(auto i = 0; i < FPSBUFSIZE; i++)
+      {
+        dt.fpsbuffer[i] = frame_duration;
+      }
+    }
+    dt.fpsbuffer[(++dt.fpsoff) % FPSBUFSIZE] = frame_duration;
+    dt.fpsoff %= FPSBUFSIZE;
+		double avgfps = 0.0; for (int i = 0; i < FPSBUFSIZE; i++) { avgfps += 1e6 / dt.fpsbuffer[i].count(); } avgfps /= FPSBUFSIZE;
+		cout << "Frame: " << dt.fpsbuffer[dt.fpsoff].count() / 1e3 << "ms, FPS: " << 1e6 / dt.fpsbuffer[dt.fpsoff].count() << ", FPS(avg): " << avgfps << endl;
+}
+
 //*********************************************************************************************************
 int main(int argc, char **argv)
 {
@@ -210,7 +265,7 @@ int main(int argc, char **argv)
 	// and GL context, etc.
 
 	WindowManager *windowManager = new WindowManager();
-	windowManager->init(2160, 1200);
+	windowManager->init(FRAMEWIDTH, FRAMEHEIGHT);
 	windowManager->setEventCallbacks(application);
 	application->windowManager = windowManager;
 
@@ -220,31 +275,20 @@ int main(int argc, char **argv)
 	application->init(resourceDir);
 	application->initGeom(resourceDir);
 
-	chrono::microseconds fpsbuffer[FPSBUFSIZE];
-	size_t fpsoff = 0;
-
+  FPSdata dt;
 	
 	// Loop until the user closes the window.
 	while (! glfwWindowShouldClose(windowManager->getHandle()))
 	{
-		auto start = chrono::steady_clock::now();
+	  startFrameCapture(dt);
 		// Render scene.
 		application->render();
 		
 		// Swap front and back buffers.
 		glfwSwapBuffers(windowManager->getHandle());
-		auto stop = chrono::steady_clock::now();
+		showFPS(dt);
 		// Poll for and process events.
 		glfwPollEvents();
-
-		fpsbuffer[(++fpsoff) % FPSBUFSIZE] = chrono::duration_cast<chrono::microseconds>(stop - start);
-		fpsoff %= FPSBUFSIZE;
-		double avgfps = 0.0; for (int i = 0; i < FPSBUFSIZE; i++) { avgfps += 1e6 / fpsbuffer[i].count(); } avgfps /= FPSBUFSIZE;
-		cout << "Frame: " << fpsbuffer[fpsoff].count() / 1e3 << "ms, FPS: " << 1e6 / fpsbuffer[fpsoff].count() << ", FPS(avg): " << avgfps << endl;
-		
-		int width, height;
-		glfwGetFramebufferSize(windowManager->getHandle(), &width, &height);
-		cout << "w: " << width << " h: " << height << endl;
 	}
 
 	// Quit program.

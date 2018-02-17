@@ -35,9 +35,9 @@ public:
 		if (s == 1)
 			going_forward -= 0.1;
 		if (a == 1)
-			rot.y -= 0.1;
+			rot.y += 0.01;
 		if (d == 1)
-			rot.y += 0.1;
+			rot.y -= 0.01;
 		glm::mat4 R = glm::rotate(glm::mat4(1), rot.y, glm::vec3(0, 1, 0));
 
 		glm::vec4 rpos = glm::vec4(0, 0, going_forward, 1);
