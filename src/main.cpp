@@ -3,6 +3,7 @@
 	based on lab 5 by CPE 471 Cal Poly Z. Wood + S. Sueda
 	& Ian Dunn, Christian Eckhardt
 */
+#define OPENVRBUILD
 #include <iostream>
 #include <chrono>
 #include <glad/glad.h>
@@ -16,12 +17,15 @@
 #include "MatrixStack.h"
 #include "WindowManager.h"
 #include "camera.h"
+#include "VRplayer.hpp"
 // used for helper in perspective
 #include "glm/glm.hpp"
 // value_ptr for glm
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <GLFW/glfw3.h>
+#include <openvr.h>
+
 using namespace std;
 using namespace glm;
 
@@ -42,16 +46,26 @@ class Application : public EventCallbacks
 public:
 
 	WindowManager * windowManager = nullptr;
+	vr::IVRSystem* pHMD; 
 
 	// Our shader program
 	std::shared_ptr<Program> pixshader;
 
 	//camera
 	camera mycam;
+
+	VRplayer* vrviewer = nullptr;
 	
 	GLfloat intersectStepSize = 10.0;
 
 	GLuint VertexArrayUnitPlane, VertexBufferUnitPlane;
+
+	struct HMD_PoseData {
+		mat4 P_left;
+		mat4 P_right;
+		mat4 Pose_left;
+		mat4 Pose_right;
+	} HMD_Pose;
 
 	void keyCallback(GLFWwindow *window, int key, int scancode, int action, int mods)
 	{
@@ -95,13 +109,6 @@ public:
 
 	void mouseCallback(GLFWwindow *window, int button, int action, int mods)
 	{
-		double posX, posY;
-
-		if (action == GLFW_PRESS)
-		{
-			glfwGetCursorPos(window, &posX, &posY);
-			cout << "Pos X " << posX <<  " Pos Y " << posY << endl;
-		}
 	}
 
 	void resizeCallback(GLFWwindow *window, int width, int height)
@@ -111,8 +118,6 @@ public:
 
 	void init(const std::string& resourceDirectory)
 	{
-
-
 		GLSL::checkVersion();
 
 		
@@ -120,14 +125,14 @@ public:
 		glClearColor(0.12f, 0.34f, 0.56f, 1.0f);
 
 		// Enable z-buffer test.
-		glEnable(GL_DEPTH_TEST);
+		glDisable(GL_DEPTH_TEST);
 
 		//culling:
 		glEnable(GL_CULL_FACE);
 		glFrontFace(GL_CCW);
 
 		//transparency
-		glEnable(GL_BLEND);
+		glDisable(GL_BLEND);
 		//next function defines how to mix the background color with the transparent pixel in the foreground. 
 		//This is the standard:
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA); 
@@ -154,8 +159,6 @@ public:
 		pixshader->addUniform("time");
 		pixshader->addUniform("view");
 		pixshader->addUniform("intersectStepSize");
-
-
 	}
 
 	void initGeom(const std::string& resourceDirectory)
@@ -189,6 +192,25 @@ public:
 
 	}
 
+	void initOVR() {
+		vr::EVRInitError vrErr = vr::VRInitError_None;
+		pHMD = vr::VR_Init(&vrErr, vr::VRApplication_Scene);
+
+		if (vrErr != vr::VRInitError_None) {
+			pHMD = NULL;
+			printf("Unable to init VR runtime: %s", vr::VR_GetVRInitErrorAsEnglishDescription(vrErr));
+			exit(1);
+		}
+
+		if (!vr::VRCompositor()) {
+			printf("Compositor initialization failed. See log file for details\n");
+			exit(1);
+		}
+
+		// CreateEyeFBO(target_width, target_height, leftEyeDesc);
+		// CreateEyeFBO(target_width, target_height, rightEyeDesc);
+	}
+
 	void render()
 	{
 		// Get current frame buffer size.
@@ -214,6 +236,29 @@ public:
 
 		pixshader->unbind();
 		
+	}
+
+	void VRrender() {
+		// psuedocode to get started
+		// int width, height =  Get vr recommended FBO size
+		// glViewport(width, height)
+		// 
+		// bind pixel shader and set basic uniforms
+		// 
+		// vrviewer->playerWaitGetPoses
+
+		// bindLeftEyeFBO 
+		// set uniforms from vrviewer
+		// glBindVertexArray(VertexArrayUnitPlane);
+		// glDrawArrays(GL_TRIANGLES, 0, 6);
+		// 
+		// bindRightEyeFBO
+		// set uniforms from vrviewer
+		// glBindVertexArray(VertexArrayUnitPlane);
+		// glDrawArrays(GL_TRIANGLES, 0, 6);
+
+		// submit left and right to compositor
+
 	}
 
 };
@@ -272,9 +317,12 @@ int main(int argc, char **argv)
 	// This is the code that will likely change program to program as you
 	// may need to initialize or set up different data and state
 
+
 	application->init(resourceDir);
 	application->initGeom(resourceDir);
-
+#ifdef OPENVRBUILD
+	application->initOVR();
+#endif
   FPSdata dt;
 	
 	// Loop until the user closes the window.
@@ -282,7 +330,11 @@ int main(int argc, char **argv)
 	{
 	  startFrameCapture(dt);
 		// Render scene.
+#ifdef OPENVRBUILD
+	    application->VRrender();
+#else
 		application->render();
+#endif
 		
 		// Swap front and back buffers.
 		glfwSwapBuffers(windowManager->getHandle());
