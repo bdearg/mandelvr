@@ -52,6 +52,16 @@ mat4 VRplayer::getEyeView(vr::Hmd_Eye eye) const{
 	return(eyepose*hmdpose);
 }
 
+mat4 VRplayer::getHeadView() const
+{
+	if (!playerVRSystem) {
+		return(mat4(0.0));
+	}
+	mat4 hmdpose = inverse(vraffine_to_glm(HMDPose.mDeviceToAbsoluteTracking));
+
+	return(hmdpose);
+}
+
 mat4 VRplayer::getEyeViewProj(vr::Hmd_Eye eye) const{
 	if(!playerVRSystem){
 		return(mat4(0.0));
@@ -70,6 +80,35 @@ void VRplayer::setStandingMode(){
 	trackingOrigin = vr::TrackingUniverseStanding;
 }
 
+void VRplayer::playerControlsTick(GLFWwindow * window, double dt){
+	mat4 view = getHeadView();
+	vec3 rightDir = normalize(view[0]);
+	vec3 upDir = normalize(view[1]);
+	vec3 viewDir = normalize(view[2]);
+	if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
+		worldPosition += viewDir * static_cast<float>(scale*dt);
+	}
+	if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
+		worldPosition += -viewDir * static_cast<float>(scale*dt);
+	}
+	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
+		worldPosition += rightDir * static_cast<float>(scale*dt);
+	}
+	if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
+		worldPosition += -rightDir * static_cast<float>(scale*dt);
+	}
+	if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
+		worldPosition += upDir * static_cast<float>(scale*dt);
+	}
+	if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS) {
+		worldPosition += -upDir * static_cast<float>(scale*dt);
+	}
+}
+
+const glm::vec3 & VRplayer::getPositionOffset() const{
+	return(worldPosition);
+}
+
 double VRplayer::getPlayerScale() const{
 	return(scale);
 }
@@ -81,6 +120,11 @@ void VRplayer::shrinkPlayer(double rate, double dt){
 }
 void VRplayer::growPlayer(double rate, double dt){
 	scale = scale*(dt/rate);
+}
+
+vec3 VRplayer::extractViewDir(const mat4 & view)
+{
+	return(view[2]);
 }
 
 static mat4 vraffine_to_glm(vr::HmdMatrix34_t vrmat){

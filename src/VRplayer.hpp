@@ -3,6 +3,7 @@
 #define VRPLAYER_H_
 
 #include <openvr.h>
+#include <GLFW\glfw3.h>
 #include "glm/glm.hpp"
 #include "glm/vec4.hpp"
 #include "glm/mat4x4.hpp"
@@ -22,15 +23,21 @@ public:
 	mat4 getLeftEyeView() const;
 	mat4 getRightEyeView() const;
 	mat4 getEyeView(vr::Hmd_Eye eye) const;
+	mat4 getHeadView() const;
 	mat4 getEyeViewProj(vr::Hmd_Eye eye) const;
 
 	void setSeatedMode();
 	void setStandingMode();
 	
+	void playerControlsTick(GLFWwindow* window, double dt);
+
+	const glm::vec3& getPositionOffset() const;
 	double getPlayerScale() const;
 	void setPlayerScale(double newscale);
 	void shrinkPlayer(double rate, double dt);
 	void growPlayer(double rate, double dt);
+
+	static vec3 extractViewDir(const mat4& view);
 
 
 	enum ScaleMode{AUTOMATIC, MANUAL};

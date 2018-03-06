@@ -8,6 +8,7 @@
 
 uniform mat4 view;
 uniform vec4 projection; // Left, Right, Top, Bottom half angle tangents for vr projection
+uniform vec3 viewoffset;
 
 uniform vec2 resolution;
 uniform float time;
@@ -169,13 +170,12 @@ float softshadow( in vec3 ro, in vec3 rd, in float k )
   return clamp( res, 0.0, 1.0 );
 }
 
-vec3 ray_from_projection(in vec2 clipspace, in mat4 cam){
-  vec4 absproj = abs(projection);
-  vec2 projmultiplier = vec2(step(clipspace.x, 0.0) * absproj.x + step(0.0, clipspace.x) * absproj.y, step(clipspace.y, 0.0) * absproj.z + step(0.0, clipspace.y) * absproj.w);
-  vec3 camspaceray = normalize(vec3(-clipspace * 1.0 * projmultiplier, 1.0));
+void vr_ray_projection(in vec2 clipspace, in mat4 cam, out vec3 ro, out vec3 rd){
   mat4 trcam = transpose(cam);
-  vec3 finalray = camspaceray.x*trcam[0].xyz + camspaceray.y*trcam[1].xyz + camspaceray.z*trcam[2].xyz;
-  return(finalray);
+  vec2 projmult = vec2(step(clipspace.x, 0.0)*abs(projection.x) + step(0.0, clipspace.x)*abs(projection.y), step(clipspace.y, 0.0)*abs(projection.z) + step(0.0, clipspace.y)*abs(projection.w));
+
+  ro = viewoffset + vec3(cam[0][3], cam[1][3], cam[2][3]);
+  rd = normalize(trcam[2].xyz*1.0 + trcam[0].xyz*clipspace.x + trcam[1].xyz*clipspace.y);
 }
 
 vec3 calcNormal( in vec3 pos, in float t, in float px )
@@ -210,8 +210,9 @@ vec3 render( in vec2 p, in mat4 cam )
   float px = 2.0/(resolution.y*fle);
 
   // Ray origin and Ray direction derived from view matrix. 
-  vec3 ro = vec3(0.0, 0.0, -5.0) + vec3(cam[0][3], cam[1][3], cam[2][3]);
-  vec3 rd = ray_from_projection(clipspace, cam);
+  vec3 ro, rd;
+  vr_ray_projection(clipspace, cam, ro, rd);
+
   // return(rd);
  // vec3  rd = normalize( (cam*vec4(clipspace,fle,0.0)).xyz );
 

@@ -20,6 +20,7 @@
 #include "VRplayer.hpp"
 // used for helper in perspective
 #include "glm/glm.hpp"
+#include "glm/ext.hpp"
 // value_ptr for glm
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -48,7 +49,7 @@ class Application : public EventCallbacks
 public:
 
 	WindowManager * windowManager = nullptr;
-	vr::IVRSystem* pHMD; 
+	vr::IVRSystem* pHMD;
 
 	// Our shader program
 	std::shared_ptr<Program> pixshader;
@@ -57,7 +58,7 @@ public:
 	camera mycam;
 
 	VRplayer* vrviewer = nullptr;
-	
+
 	GLfloat intersectStepSize = 10.0;
 
 	GLuint VertexArrayUnitPlane, VertexBufferUnitPlane;
@@ -123,7 +124,7 @@ public:
 	{
 		GLSL::checkVersion();
 
-		
+
 		// Set background color.
 		glClearColor(0.12f, 0.34f, 0.56f, 1.0f);
 
@@ -138,13 +139,13 @@ public:
 		glDisable(GL_BLEND);
 		//next function defines how to mix the background color with the transparent pixel in the foreground. 
 		//This is the standard:
-		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA); 
-		
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
 		mat4 look = lookAt(
-		  vec3(0, 0, 2),// eye
-		  vec3(0, 0, 0),// target
-		  vec3(0, 1, 0)// up
-		  );
+			vec3(0, 0, 2),// eye
+			vec3(0, 0, 0),// target
+			vec3(0, 1, 0)// up
+		);
 		vec4 eyepos = look * vec4(0, 0, 0, 1);
 		mycam.pos = vec3(eyepos.x, eyepos.y, eyepos.z);
 
@@ -163,6 +164,7 @@ public:
 		pixshader->addUniform("view");
 		pixshader->addUniform("projection");
 		pixshader->addUniform("intersectStepSize");
+		pixshader->addUniform("viewoffset");
 	}
 
 	void initGeom(const std::string& resourceDirectory)
@@ -229,12 +231,12 @@ public:
 		glfwGetFramebufferSize(windowManager->getHandle(), &width, &height);
 		float aspect = width / (float)height;
 		glViewport(0, 0, width, height);
-		
+
 		// love too couple input processing with state polling
 		mat4 view = transpose(mycam.process());
-		
+
 		// Clear framebuffer.
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);	
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		pixshader->bind();
 		glUniform2f(pixshader->getUniform("resolution"), static_cast<float>(width), static_cast<float>(width));
@@ -246,7 +248,7 @@ public:
 		glDrawArrays(GL_TRIANGLES, 0, 6);
 
 		pixshader->unbind();
-		
+
 	}
 
 
@@ -263,6 +265,7 @@ public:
 			mat4 view = transpose(vrviewer->getEyeView(vr::Eye_Left));
 			printf("Methinks the Left eye is at location: (%g, %g, %g, %g)\n", view[0][3], view[1][3], view[2][3], view[3][3]);
 			glUniformMatrix4fv(pixshader->getUniform("view"), 1, GL_FALSE, value_ptr(view));
+			glUniform3fv(pixshader->getUniform("viewoffset"), 1, value_ptr(vrviewer->getPositionOffset()));
 			float left, right, top, bottom;
 			pHMD->GetProjectionRaw(vr::Eye_Left, &left, &right, &top, &bottom);
 			glUniform4f(pixshader->getUniform("projection"), left, right, top, bottom);
@@ -286,6 +289,7 @@ public:
 			mat4 view = transpose(vrviewer->getEyeView(vr::Eye_Right));
 			printf("Methinks the Right eye is at location: (%g, %g, %g, %g)\n", view[0][3], view[1][3], view[2][3], view[3][3]);
 			glUniformMatrix4fv(pixshader->getUniform("view"), 1, GL_FALSE, value_ptr(view));
+			glUniform3fv(pixshader->getUniform("viewoffset"), 1, value_ptr(vrviewer->getPositionOffset()));
 			float left, right, top, bottom;
 			pHMD->GetProjectionRaw(vr::Eye_Right, &left, &right, &top, &bottom);
 			glUniform4f(pixshader->getUniform("projection"), left, right, top, bottom);
@@ -302,7 +306,7 @@ public:
 		}
 
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
-		
+
 		vrviewer->playerWaitGetPoses();
 
 	}
@@ -322,32 +326,32 @@ static void CreateEyeFBO(UINT width, UINT height, GLuint* fbo, GLuint* colorattc
 }
 
 struct FPSdata {
-  bool dataInit = false;
+	bool dataInit = false;
 	chrono::microseconds fpsbuffer[FPSBUFSIZE];
 	size_t fpsoff = 0;
-  chrono::steady_clock::time_point start, stop;
+	chrono::steady_clock::time_point start, stop;
 };
 
 void startFrameCapture(FPSdata &dt)
 {
-	dt.start = chrono::steady_clock::now(); 
+	dt.start = chrono::steady_clock::now();
 }
 
 void showFPS(FPSdata &dt)
 {
-    dt.stop = chrono::steady_clock::now();
-    auto frame_duration = chrono::duration_cast<chrono::microseconds>(dt.stop - dt.start);
-    if(!dt.dataInit)
-    {
-      for(auto i = 0; i < FPSBUFSIZE; i++)
-      {
-        dt.fpsbuffer[i] = frame_duration;
-      }
-    }
-    dt.fpsbuffer[(++dt.fpsoff) % FPSBUFSIZE] = frame_duration;
-    dt.fpsoff %= FPSBUFSIZE;
-		double avgfps = 0.0; for (int i = 0; i < FPSBUFSIZE; i++) { avgfps += 1e6 / dt.fpsbuffer[i].count(); } avgfps /= FPSBUFSIZE;
-		cout << "Frame: " << dt.fpsbuffer[dt.fpsoff].count() / 1e3 << "ms, FPS: " << 1e6 / dt.fpsbuffer[dt.fpsoff].count() << ", FPS(avg): " << avgfps << endl;
+	dt.stop = chrono::steady_clock::now();
+	auto frame_duration = chrono::duration_cast<chrono::microseconds>(dt.stop - dt.start);
+	if (!dt.dataInit)
+	{
+		for (auto i = 0; i < FPSBUFSIZE; i++)
+		{
+			dt.fpsbuffer[i] = frame_duration;
+		}
+	}
+	dt.fpsbuffer[(++dt.fpsoff) % FPSBUFSIZE] = frame_duration;
+	dt.fpsoff %= FPSBUFSIZE;
+	double avgfps = 0.0; for (int i = 0; i < FPSBUFSIZE; i++) { avgfps += 1e6 / dt.fpsbuffer[i].count(); } avgfps /= FPSBUFSIZE;
+	cout << "Frame: " << dt.fpsbuffer[dt.fpsoff].count() / 1e3 << "ms, FPS: " << 1e6 / dt.fpsbuffer[dt.fpsoff].count() << ", FPS(avg): " << avgfps << endl;
 }
 
 //*********************************************************************************************************
@@ -393,19 +397,22 @@ int main(int argc, char **argv)
 	application->initVRFBO();
 #endif
 
-  FPSdata dt;
-	
+	FPSdata dt;
+
 	// Loop until the user closes the window.
-	while (! glfwWindowShouldClose(windowManager->getHandle()))
+	double lasttime = glfwGetTime();
+	while (!glfwWindowShouldClose(windowManager->getHandle()))
 	{
-	  startFrameCapture(dt);
+		startFrameCapture(dt);
 		// Render scene.
 #ifdef OPENVRBUILD
-	    application->VRrender();
+		application->vrviewer->playerControlsTick(windowManager->getHandle(), glfwGetTime() - lasttime);
+		lasttime = glfwGetTime();
+		application->VRrender();
 #else
 		application->render();
 #endif
-		
+
 		// Swap front and back buffers.
 		glfwSwapBuffers(windowManager->getHandle());
 		showFPS(dt);
