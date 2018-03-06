@@ -169,11 +169,13 @@ float softshadow( in vec3 ro, in vec3 rd, in float k )
   return clamp( res, 0.0, 1.0 );
 }
 
-vec3 ray_from_projection(in vec2 clipspace, in float fle, in mat4 cam){
-    vec2 projmultiplier = vec2(step(clipspace.x, 0.0) * projection.x + step(0.0, clipspace.x) * projection.y, step(clipspace.y, 0.0) * projection.z + step(0.0, clipspace.y) * projection.w);
-    vec3 camspaceray = normalize(vec3(clipspace * fle * projmultiplier, fle));
-    vec3 finalray  = normalize(vec4(camspaceray, 0.0)*cam).xyz;
-    return(finalray);
+vec3 ray_from_projection(in vec2 clipspace, in mat4 cam){
+  vec4 absproj = abs(projection);
+  vec2 projmultiplier = vec2(step(clipspace.x, 0.0) * absproj.x + step(0.0, clipspace.x) * absproj.y, step(clipspace.y, 0.0) * absproj.z + step(0.0, clipspace.y) * absproj.w);
+  vec3 camspaceray = normalize(vec3(-clipspace * 1.0 * projmultiplier, 1.0));
+  mat4 trcam = transpose(cam);
+  vec3 finalray = camspaceray.x*trcam[0].xyz + camspaceray.y*trcam[1].xyz + camspaceray.z*trcam[2].xyz;
+  return(finalray);
 }
 
 vec3 calcNormal( in vec3 pos, in float t, in float px )
@@ -208,10 +210,10 @@ vec3 render( in vec2 p, in mat4 cam )
   float px = 2.0/(resolution.y*fle);
 
   // Ray origin and Ray direction derived from view matrix. 
-  // vec3  ro = vec3( cam[0].w, cam[1].w, cam[2].w );
-  vec3 ro = vec3(0.0, 0.0, -5.0);
-  vec3 rd = ray_from_projection(clipspace, fle, cam);
- // vec3  rd = normalize( (cam*vec4(sp,fle,0.0)).xyz );
+  vec3 ro = vec3(0.0, 0.0, -5.0) + vec3(cam[0][3], cam[1][3], cam[2][3]);
+  vec3 rd = ray_from_projection(clipspace, cam);
+  // return(rd);
+ // vec3  rd = normalize( (cam*vec4(clipspace,fle,0.0)).xyz );
 
   // intersect fractal
   vec4 tra;

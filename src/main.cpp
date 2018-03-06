@@ -62,14 +62,13 @@ public:
 
 	GLuint VertexArrayUnitPlane, VertexBufferUnitPlane;
 
-	GLuint outputFBO, outputColor;
+	struct EyeFbo {
+		GLuint FBO;
+		GLuint colorattch;
+	};
 
-	struct HMD_PoseData {
-		mat4 P_left;
-		mat4 P_right;
-		mat4 Pose_left;
-		mat4 Pose_right;
-	} HMD_Pose;
+	EyeFbo leftFBO;
+	EyeFbo rightFBO;
 
 	void keyCallback(GLFWwindow *window, int key, int scancode, int action, int mods)
 	{
@@ -219,7 +218,8 @@ public:
 		uint32_t vr_width, vr_height;
 		pHMD->GetRecommendedRenderTargetSize(&vr_width, &vr_height);
 
-		CreateEyeFBO(vr_width, vr_height, &outputFBO, &outputColor);
+		CreateEyeFBO(vr_width, vr_height, &(leftFBO.FBO), &(leftFBO.colorattch));
+		CreateEyeFBO(vr_width, vr_height, &(rightFBO.FBO), &(rightFBO.colorattch));
 	}
 
 	void render()
@@ -261,19 +261,20 @@ public:
 			glUniform1f(pixshader->getUniform("time"), glfwGetTime());
 			glUniform1f(pixshader->getUniform("intersectStepSize"), 0.25);
 			mat4 view = transpose(vrviewer->getEyeView(vr::Eye_Left));
+			printf("Methinks the Left eye is at location: (%g, %g, %g, %g)\n", view[0][3], view[1][3], view[2][3], view[3][3]);
 			glUniformMatrix4fv(pixshader->getUniform("view"), 1, GL_FALSE, value_ptr(view));
 			float left, right, top, bottom;
 			pHMD->GetProjectionRaw(vr::Eye_Left, &left, &right, &top, &bottom);
 			glUniform4f(pixshader->getUniform("projection"), left, right, top, bottom);
 
-			glBindFramebuffer(GL_FRAMEBUFFER, outputFBO);
+			glBindFramebuffer(GL_FRAMEBUFFER, leftFBO.FBO);
 
 			glBindVertexArray(VertexArrayUnitPlane);
 			glDrawArrays(GL_TRIANGLES, 0, 6);
 
 			pixshader->unbind();
 
-			vr::Texture_t leftEyeTexture = { (void*)(uintptr_t)outputColor, vr::TextureType_OpenGL, vr::ColorSpace_Gamma };
+			vr::Texture_t leftEyeTexture = { (void*)(uintptr_t)leftFBO.colorattch, vr::TextureType_OpenGL, vr::ColorSpace_Gamma };
 			vr::VRCompositor()->Submit(vr::Eye_Left, &leftEyeTexture);
 		}
 
@@ -283,19 +284,20 @@ public:
 			glUniform1f(pixshader->getUniform("time"), glfwGetTime());
 			glUniform1f(pixshader->getUniform("intersectStepSize"), 0.25);
 			mat4 view = transpose(vrviewer->getEyeView(vr::Eye_Right));
+			printf("Methinks the Right eye is at location: (%g, %g, %g, %g)\n", view[0][3], view[1][3], view[2][3], view[3][3]);
 			glUniformMatrix4fv(pixshader->getUniform("view"), 1, GL_FALSE, value_ptr(view));
 			float left, right, top, bottom;
 			pHMD->GetProjectionRaw(vr::Eye_Right, &left, &right, &top, &bottom);
 			glUniform4f(pixshader->getUniform("projection"), left, right, top, bottom);
 
-			glBindFramebuffer(GL_FRAMEBUFFER, outputFBO);
+			glBindFramebuffer(GL_FRAMEBUFFER, rightFBO.FBO);
 
 			glBindVertexArray(VertexArrayUnitPlane);
 			glDrawArrays(GL_TRIANGLES, 0, 6);
 
 			pixshader->unbind();
 
-			vr::Texture_t rightEyeTexture = { (void*)(uintptr_t)outputColor, vr::TextureType_OpenGL, vr::ColorSpace_Gamma };
+			vr::Texture_t rightEyeTexture = { (void*)(uintptr_t)rightFBO.colorattch, vr::TextureType_OpenGL, vr::ColorSpace_Gamma };
 			vr::VRCompositor()->Submit(vr::Eye_Right, &rightEyeTexture);
 		}
 
@@ -411,6 +413,9 @@ int main(int argc, char **argv)
 		glfwPollEvents();
 	}
 
+#ifdef OPENVRBUILD
+	vr::VR_Shutdown();
+#endif
 	// Quit program.
 	windowManager->shutdown();
 	return 0;
