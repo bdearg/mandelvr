@@ -174,8 +174,8 @@ void vr_ray_projection(in vec2 clipspace, in mat4 cam, out vec3 ro, out vec3 rd)
   mat4 trcam = transpose(cam);
   vec2 projmult = vec2(step(clipspace.x, 0.0)*abs(projection.x) + step(0.0, clipspace.x)*abs(projection.y), step(clipspace.y, 0.0)*abs(projection.z) + step(0.0, clipspace.y)*abs(projection.w));
 
-  ro = viewoffset + vec3(cam[0][3], cam[1][3], cam[2][3]);
-  rd = normalize(trcam[2].xyz*1.0 + trcam[0].xyz*clipspace.x + trcam[1].xyz*clipspace.y);
+  ro = viewoffset*vec3(-1.0, -1.0, 1.0) + vec3(cam[0][3], cam[1][3], cam[2][3]);
+  rd = normalize(trcam[2].xyz*1.0 + trcam[0].xyz*(-clipspace.x) + trcam[1].xyz*(-clipspace.y));
 }
 
 vec3 calcNormal( in vec3 pos, in float t, in float px )
@@ -196,6 +196,8 @@ const vec3 light2 = vec3( -0.707, 0.000,  0.707 );
 
 vec3 render( in vec2 p, in mat4 cam )
 {
+
+
   // ray setup
   // this is our distance from the bulb
   const float fle = 1.5;
@@ -204,9 +206,9 @@ vec3 render( in vec2 p, in mat4 cam )
   // (0, 0) -> resolution.xy
   // to
   // (-res.x/res.y, -1) -> (res.x/res.y, 1)
-  //vec2  sp = (-resolution.xy + 2.0*p) / resolution.y;
+  // vec2  sp = (-resolution.xy + 2.0*p) / resolution.y;
 
-  vec2 clipspace = (p / resolution.xy)*2.0 - 1.0;
+  vec2 clipspace = (p / resolution.y)*2.0 - 1.0;
   float px = 2.0/(resolution.y*fle);
 
   // Ray origin and Ray direction derived from view matrix. 
@@ -276,6 +278,7 @@ vec3 render( in vec2 p, in mat4 cam )
 
 void main()
 {
+
   float alttime = time*10.;
 
   // camera
