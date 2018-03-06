@@ -40,6 +40,8 @@ using namespace glm;
 #define FRAMEHEIGHT 480
 #endif
 
+static void CreateEyeFBO(UINT width, UINT height, GLuint* fbo, GLuint* colorattch);
+
 class Application : public EventCallbacks
 {
 
@@ -59,6 +61,8 @@ public:
 	GLfloat intersectStepSize = 10.0;
 
 	GLuint VertexArrayUnitPlane, VertexBufferUnitPlane;
+
+	GLuint outputFBO, outputColor;
 
 	struct HMD_PoseData {
 		mat4 P_left;
@@ -158,6 +162,7 @@ public:
 		pixshader->addUniform("resolution");
 		pixshader->addUniform("time");
 		pixshader->addUniform("view");
+		pixshader->addUniform("projection");
 		pixshader->addUniform("intersectStepSize");
 	}
 
@@ -207,8 +212,14 @@ public:
 			exit(1);
 		}
 
-		// CreateEyeFBO(target_width, target_height, leftEyeDesc);
-		// CreateEyeFBO(target_width, target_height, rightEyeDesc);
+		vrviewer = new VRplayer(pHMD);
+	}
+
+	void initVRFBO() {
+		uint32_t vr_width, vr_height;
+		pHMD->GetRecommendedRenderTargetSize(&vr_width, &vr_height);
+
+		CreateEyeFBO(vr_width, vr_height, &outputFBO, &outputColor);
 	}
 
 	void render()
@@ -238,30 +249,75 @@ public:
 		
 	}
 
+
 	void VRrender() {
-		// psuedocode to get started
-		// int width, height =  Get vr recommended FBO size
-		// glViewport(width, height)
-		// 
-		// bind pixel shader and set basic uniforms
-		// 
-		// vrviewer->playerWaitGetPoses
+		uint32_t vr_width, vr_height;
+		pHMD->GetRecommendedRenderTargetSize(&vr_width, &vr_height);
+		glViewport(0, 0, vr_width, vr_height);
 
-		// bindLeftEyeFBO 
-		// set uniforms from vrviewer
-		// glBindVertexArray(VertexArrayUnitPlane);
-		// glDrawArrays(GL_TRIANGLES, 0, 6);
-		// 
-		// bindRightEyeFBO
-		// set uniforms from vrviewer
-		// glBindVertexArray(VertexArrayUnitPlane);
-		// glDrawArrays(GL_TRIANGLES, 0, 6);
+		{ // Left eye
+			pixshader->bind();
+			glUniform2f(pixshader->getUniform("resolution"), static_cast<float>(vr_width), static_cast<float>(vr_height));
+			glUniform1f(pixshader->getUniform("time"), glfwGetTime());
+			glUniform1f(pixshader->getUniform("intersectStepSize"), 0.25);
+			mat4 view = transpose(vrviewer->getEyeView(vr::Eye_Left));
+			glUniformMatrix4fv(pixshader->getUniform("view"), 1, GL_FALSE, value_ptr(view));
+			float left, right, top, bottom;
+			pHMD->GetProjectionRaw(vr::Eye_Left, &left, &right, &top, &bottom);
+			glUniform4f(pixshader->getUniform("projection"), left, right, top, bottom);
 
-		// submit left and right to compositor
+			glBindFramebuffer(GL_FRAMEBUFFER, outputFBO);
+
+			glBindVertexArray(VertexArrayUnitPlane);
+			glDrawArrays(GL_TRIANGLES, 0, 6);
+
+			pixshader->unbind();
+
+			vr::Texture_t leftEyeTexture = { (void*)(uintptr_t)outputColor, vr::TextureType_OpenGL, vr::ColorSpace_Gamma };
+			vr::VRCompositor()->Submit(vr::Eye_Left, &leftEyeTexture);
+		}
+
+		{ // Right eye
+			pixshader->bind();
+			glUniform2f(pixshader->getUniform("resolution"), static_cast<float>(vr_width), static_cast<float>(vr_height));
+			glUniform1f(pixshader->getUniform("time"), glfwGetTime());
+			glUniform1f(pixshader->getUniform("intersectStepSize"), 0.25);
+			mat4 view = transpose(vrviewer->getEyeView(vr::Eye_Right));
+			glUniformMatrix4fv(pixshader->getUniform("view"), 1, GL_FALSE, value_ptr(view));
+			float left, right, top, bottom;
+			pHMD->GetProjectionRaw(vr::Eye_Right, &left, &right, &top, &bottom);
+			glUniform4f(pixshader->getUniform("projection"), left, right, top, bottom);
+
+			glBindFramebuffer(GL_FRAMEBUFFER, outputFBO);
+
+			glBindVertexArray(VertexArrayUnitPlane);
+			glDrawArrays(GL_TRIANGLES, 0, 6);
+
+			pixshader->unbind();
+
+			vr::Texture_t rightEyeTexture = { (void*)(uintptr_t)outputColor, vr::TextureType_OpenGL, vr::ColorSpace_Gamma };
+			vr::VRCompositor()->Submit(vr::Eye_Right, &rightEyeTexture);
+		}
+
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		
+		vrviewer->playerWaitGetPoses();
 
 	}
 
 };
+
+static void CreateEyeFBO(UINT width, UINT height, GLuint* fbo, GLuint* colorattch) {
+	glGenFramebuffers(1, fbo);
+	glBindFramebuffer(GL_FRAMEBUFFER, *fbo);
+
+	glGenTextures(1, colorattch);
+	glBindTexture(GL_TEXTURE_2D, *colorattch);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, *colorattch, 0);
+}
 
 struct FPSdata {
   bool dataInit = false;
@@ -309,8 +365,18 @@ int main(int argc, char **argv)
 	// Your main will always include a similar set up to establish your window
 	// and GL context, etc.
 
+#ifdef OPENVRBUILD
+	application->initOVR();
+#endif
+
 	WindowManager *windowManager = new WindowManager();
+#ifdef OPENVRBUILD
+	uint32_t vr_width, vr_height;
+	application->pHMD->GetRecommendedRenderTargetSize(&vr_width, &vr_height);
+	windowManager->init(vr_width, vr_height);
+#else
 	windowManager->init(FRAMEWIDTH, FRAMEHEIGHT);
+#endif
 	windowManager->setEventCallbacks(application);
 	application->windowManager = windowManager;
 
@@ -320,9 +386,11 @@ int main(int argc, char **argv)
 
 	application->init(resourceDir);
 	application->initGeom(resourceDir);
+
 #ifdef OPENVRBUILD
-	application->initOVR();
+	application->initVRFBO();
 #endif
+
   FPSdata dt;
 	
 	// Loop until the user closes the window.

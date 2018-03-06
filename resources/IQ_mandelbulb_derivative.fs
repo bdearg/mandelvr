@@ -7,6 +7,7 @@
 //#define STEPCOUNT 128
 
 uniform mat4 view;
+uniform vec4 projection; // Left, Right, Top, Bottom half angle tangents for vr projection
 
 uniform vec2 resolution;
 uniform float time;
@@ -168,6 +169,13 @@ float softshadow( in vec3 ro, in vec3 rd, in float k )
   return clamp( res, 0.0, 1.0 );
 }
 
+vec3 ray_from_projection(in vec2 clipspace, in float fle, in mat4 cam){
+    vec2 projmultiplier = vec2(step(clipspace.x, 0.0) * projection.x + step(0.0, clipspace.x) * projection.y, step(clipspace.y, 0.0) * projection.z + step(0.0, clipspace.y) * projection.w);
+    vec3 camspaceray = normalize(vec3(clipspace * fle * projmultiplier, fle));
+    vec3 finalray  = normalize(vec4(camspaceray, 0.0)*cam).xyz;
+    return(finalray);
+}
+
 vec3 calcNormal( in vec3 pos, in float t, in float px )
 {
   return vec3(1.0, 0.0, 0.0);
@@ -194,11 +202,16 @@ vec3 render( in vec2 p, in mat4 cam )
   // (0, 0) -> resolution.xy
   // to
   // (-res.x/res.y, -1) -> (res.x/res.y, 1)
-  vec2  sp = (-resolution.xy + 2.0*p) / resolution.y;
+  //vec2  sp = (-resolution.xy + 2.0*p) / resolution.y;
+
+  vec2 clipspace = (p / resolution.xy)*2.0 - 1.0;
   float px = 2.0/(resolution.y*fle);
 
-  vec3  ro = vec3( cam[0].w, cam[1].w, cam[2].w );
-  vec3  rd = normalize( (cam*vec4(sp,fle,0.0)).xyz );
+  // Ray origin and Ray direction derived from view matrix. 
+  // vec3  ro = vec3( cam[0].w, cam[1].w, cam[2].w );
+  vec3 ro = vec3(0.0, 0.0, -5.0);
+  vec3 rd = ray_from_projection(clipspace, fle, cam);
+ // vec3  rd = normalize( (cam*vec4(sp,fle,0.0)).xyz );
 
   // intersect fractal
   vec4 tra;
@@ -294,6 +307,7 @@ void main()
       cv, ro.y,
       cw, ro.z, 
       0.0, 0.0, 0.0, 1.0);*/
+  
   mat4 cam = view;
 
   // render
@@ -304,7 +318,7 @@ void main()
   for( int j=0; j<AA; j++ )
     for( int i=0; i<AA; i++ )
     {
-      col += render( gl_FragCoord .xy+ (vec2(i,j)/float(AA)), cam );
+      col += render( gl_FragCoord.xy + (vec2(i,j)/float(AA)), cam );
     }
   col /= float(AA*AA);
 #endif
