@@ -1,5 +1,6 @@
 #include "VRplayer.hpp"
 
+#include <iostream>
 #include <stdlib.h>
 #include <stdio.h>
 #include <openvr.h>
@@ -7,6 +8,7 @@
 #include "glm/vec4.hpp"
 #include "glm/mat4x4.hpp"
 #include "glm/gtc/matrix_transform.hpp"
+#include "glm/ext.hpp"
 
 using namespace std;
 using namespace glm;
@@ -22,8 +24,17 @@ VRplayer::VRplayer(vr::IVRSystem* playervrsystem, vr::ETrackingUniverseOrigin eo
 
 }
 
-const vr::TrackedDevicePose_t& VRplayer::getHeadsetPose() const{
+const vr::TrackedDevicePose_t& VRplayer::getRawHeadsetPose() const{
 	return(HMDPose);
+}
+
+mat4 VRplayer::getHeadsetPose() const {
+	if (!playerVRSystem) {
+		return(mat4(0.0));
+	}
+	mat4 hmdpose = vraffine_to_glm(HMDPose.mDeviceToAbsoluteTracking);
+
+	return(hmdpose);
 }
 
 void VRplayer::playerWaitGetPoses(){
@@ -73,6 +84,14 @@ mat4 VRplayer::getEyeViewProj(vr::Hmd_Eye eye) const{
 	return(P*eyepose*hmdpose);
 }
 
+mat4 VRplayer::getEyeProj(vr::Hmd_Eye eye) const
+{
+	if (!playerVRSystem) {
+		return(mat4(0.0));
+	}
+	return(correct_matrix_order(playerVRSystem->GetProjectionMatrix(eye, .01, 100.0)));
+}
+
 void VRplayer::setSeatedMode(){
 	trackingOrigin = vr::TrackingUniverseSeated;
 }
@@ -82,31 +101,65 @@ void VRplayer::setStandingMode(){
 
 void VRplayer::playerControlsTick(GLFWwindow * window, double dt){
 	mat4 view = getHeadView();
-	vec3 rightDir = normalize(view[0]);
-	vec3 upDir = normalize(view[1]);
-	vec3 viewDir = normalize(view[2]);
+	vec3 rightDir = normalize(view[0]) * toMat4(rotationOffset);
+	vec3 upDir = normalize(view[1]) * toMat4(rotationOffset);
+	vec3 viewDir = normalize(view[2]) * toMat4(rotationOffset);
+
+	float movementscalar = static_cast<float>(scale*dt);
+
+	if (glfwJoystickPresent(GLFW_JOYSTICK_1)) {
+		int joycount, buttoncount;
+		const float* joyinput = glfwGetJoystickAxes(GLFW_JOYSTICK_1, &joycount);
+		const unsigned char* buttoninput = glfwGetJoystickButtons(GLFW_JOYSTICK_1, &buttoncount);
+
+		vec3 planar_movement = rightDir * joyinput[0] + viewDir * joyinput[1];
+		vec3 vertical_movement = upDir * joyinput[3] * movementscalar;
+		float rotation_factor = -joyinput[2] * .2f;
+		vec3 final_planar = planar_movement == vec3(0.0) || glm::all(isnan(planar_movement)) ? vec3(0.0) : normalize(planar_movement) * movementscalar;
+
+		worldPosition += final_planar;
+		worldPosition += glm::all(isnan(vertical_movement)) ? vec3(0.0) : vertical_movement;
+
+		if (fabs(rotation_factor) > .05 && !isnan(rotation_factor) && !isinf(rotation_factor)) {
+			// rotationOffset *= angleAxis(rotation_factor * static_cast<float>(dt), upDir);
+		}
+
+		float shrinkFactor = (joyinput[4] + 1.0)*.5;
+		float growFactor = (joyinput[5] + 1.0)*.5;
+		float scalefactor = (shrinkFactor > growFactor) ? mix(1.0, .5, dt) : mix(1.0, 2.0, dt);
+		if (shrinkFactor + growFactor > .05 && !isnan(scalefactor) && !isinf(scalefactor)) {
+			scale = scale * scalefactor;
+		}
+		
+	}
+
 	if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
-		worldPosition += viewDir * static_cast<float>(scale*dt);
+		worldPosition += viewDir * movementscalar;
 	}
 	if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
-		worldPosition += -viewDir * static_cast<float>(scale*dt);
+		worldPosition += -viewDir * movementscalar;
 	}
 	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
-		worldPosition += rightDir * static_cast<float>(scale*dt);
+		worldPosition += rightDir * movementscalar;
 	}
 	if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
-		worldPosition += -rightDir * static_cast<float>(scale*dt);
+		worldPosition += -rightDir * movementscalar;
 	}
 	if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
-		worldPosition += upDir * static_cast<float>(scale*dt);
+		worldPosition += upDir * movementscalar;
 	}
 	if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS) {
-		worldPosition += -upDir * static_cast<float>(scale*dt);
+		worldPosition += -upDir * movementscalar;
 	}
 }
 
 const glm::vec3 & VRplayer::getPositionOffset() const{
 	return(worldPosition);
+}
+
+const glm::mat4 & VRplayer::getRotationOffset() const
+{
+	return(toMat4(rotationOffset));
 }
 
 double VRplayer::getPlayerScale() const{

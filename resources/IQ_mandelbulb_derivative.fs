@@ -5,10 +5,14 @@
 #define STEPLENGTH .25
 #define STEPCOUNT 128
 //#define STEPCOUNT 128
+#define UNITIPD 1.0
 
 uniform mat4 view;
-uniform vec4 projection; // Left, Right, Top, Bottom half angle tangents for vr projection
+uniform mat4 headpose;
+uniform mat4 rotationoffset;
+uniform mat4 projection; // Left, Right, Top, Bottom half angle tangents for vr projection
 uniform vec3 viewoffset;
+uniform float viewscale;
 
 uniform vec2 resolution;
 uniform float time;
@@ -172,10 +176,12 @@ float softshadow( in vec3 ro, in vec3 rd, in float k )
 
 void vr_ray_projection(in vec2 clipspace, in mat4 cam, out vec3 ro, out vec3 rd){
   mat4 trcam = transpose(cam);
-  vec2 projmult = vec2(step(clipspace.x, 0.0)*abs(projection.x) + step(0.0, clipspace.x)*abs(projection.y), step(clipspace.y, 0.0)*abs(projection.z) + step(0.0, clipspace.y)*abs(projection.w));
+  vec3 cspr = vec3(clipspace.x, clipspace.y, 1.0);
+  vec3 vspr = (inverse(projection)*vec4(cspr, 1.0)).xyz;
 
-  ro = viewoffset*vec3(-1.0, -1.0, 1.0) + vec3(cam[0][3], cam[1][3], cam[2][3]);
-  rd = normalize(trcam[2].xyz*1.0 + trcam[0].xyz*(-clipspace.x) + trcam[1].xyz*(-clipspace.y));
+  vec3 eyeoffset = inverse(cam)[3].xyz - (headpose)[3].xyz;
+  ro = viewoffset*vec3(1.0, 1.0, -1.0) + (headpose)[3].xyz*viewscale + eyeoffset*UNITIPD*viewscale;
+  rd = trcam[0].xyz*vspr.x + trcam[1].xyz*vspr.y + trcam[2].xyz*vspr.z;
 }
 
 vec3 calcNormal( in vec3 pos, in float t, in float px )

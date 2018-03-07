@@ -8,6 +8,7 @@
 #include "glm/vec4.hpp"
 #include "glm/mat4x4.hpp"
 #include "glm/gtc/matrix_transform.hpp"
+#include "glm/gtc/quaternion.hpp"
 
 using namespace glm;
 using namespace std;
@@ -19,12 +20,14 @@ public:
 
 	void playerWaitGetPoses();
 	
-	const vr::TrackedDevicePose_t& getHeadsetPose() const;
+	const vr::TrackedDevicePose_t& getRawHeadsetPose() const;
+	mat4 getHeadsetPose() const;
 	mat4 getLeftEyeView() const;
 	mat4 getRightEyeView() const;
 	mat4 getEyeView(vr::Hmd_Eye eye) const;
 	mat4 getHeadView() const;
 	mat4 getEyeViewProj(vr::Hmd_Eye eye) const;
+	mat4 getEyeProj(vr::Hmd_Eye eye) const;
 
 	void setSeatedMode();
 	void setStandingMode();
@@ -32,13 +35,13 @@ public:
 	void playerControlsTick(GLFWwindow* window, double dt);
 
 	const glm::vec3& getPositionOffset() const;
+	const glm::mat4& getRotationOffset() const;
 	double getPlayerScale() const;
 	void setPlayerScale(double newscale);
 	void shrinkPlayer(double rate, double dt);
 	void growPlayer(double rate, double dt);
 
 	static vec3 extractViewDir(const mat4& view);
-
 
 	enum ScaleMode{AUTOMATIC, MANUAL};
 
@@ -52,6 +55,7 @@ private:
 	ScaleMode scalingMode = MANUAL; 
 
 	vec3 worldPosition = vec3(0.0);
+	quat rotationOffset;
 	double scale = 1.0; 
 };
 

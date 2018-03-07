@@ -166,10 +166,14 @@ public:
 		pixshader->addUniform("projection");
 		pixshader->addUniform("intersectStepSize");
 		pixshader->addUniform("viewoffset");
+		pixshader->addUniform("viewscale");
+		pixshader->addUniform("P");
+		pixshader->addUniform("headpose");
+		pixshader->addUniform("rotationoffset");
 
 		passthru = make_shared<Program>();
 		passthru->setVerbose(true);
-		passthru->setShaderNames(resourceDirectory + "/passthru.vs", resourceDirectory + "/passthru.fs");
+		passthru->setShaderNames(resourceDirectory + "/passthru.vs", resourceDirectory + "/companion_view.fs");
 		if (!passthru->init())
 		{
 			std::cerr << "One or more shaders failed to compile... exiting!" << std::endl;
@@ -177,8 +181,9 @@ public:
 		}
 		passthru->init();
 		passthru->addAttribute("vertPos");
-		passthru->addUniform("pixtex");
-		passthru->addUniform("resolution");
+		passthru->addUniform("leftEye");
+		passthru->addUniform("rightEye");
+		passthru->addUniform("vr_resolution");
 	}
 
 	void initGeom(const std::string& resourceDirectory)
@@ -271,20 +276,24 @@ public:
 		pHMD->GetRecommendedRenderTargetSize(&vr_width, &vr_height);
 		glViewport(0, 0, vr_width, vr_height);
 
-		mat4 view = (vrviewer->getEyeView(vr::Eye_Left));
-		vr::Texture_t leftEyeTexture;
+		
+		mat4 hmdPose = vrviewer->getHeadsetPose();
+		mat4 rotationOffset = vrviewer->getRotationOffset();
+		cout << glm::to_string(rotationOffset) << endl;
+		float viewerscale = static_cast<float>(vrviewer->getPlayerScale());
 		{ // Left eye
 			pixshader->bind();
 			glUniform2f(pixshader->getUniform("resolution"), static_cast<float>(vr_width), static_cast<float>(vr_height));
 			glUniform1f(pixshader->getUniform("time"), glfwGetTime());
 			glUniform1f(pixshader->getUniform("intersectStepSize"), 0.25);
-			
-			printf("Methinks the Left eye is at location: (%g, %g, %g, %g)\n", view[0][3], view[1][3], view[2][3], view[3][3]);
+			glUniform1f(pixshader->getUniform("viewscale"), viewerscale);
+			mat4 view = (vrviewer->getEyeView(vr::Eye_Left));
+			mat4 P = vrviewer->getEyeProj(vr::Eye_Left);
 			glUniformMatrix4fv(pixshader->getUniform("view"), 1, GL_FALSE, value_ptr(view));
+			glUniformMatrix4fv(pixshader->getUniform("projection"), 1, GL_FALSE, value_ptr(P));
+			glUniformMatrix4fv(pixshader->getUniform("headpose"), 1, GL_FALSE, value_ptr(hmdPose));
 			glUniform3fv(pixshader->getUniform("viewoffset"), 1, value_ptr(vrviewer->getPositionOffset()));
-			float left, right, top, bottom;
-			pHMD->GetProjectionRaw(vr::Eye_Left, &left, &right, &top, &bottom);
-			glUniform4f(pixshader->getUniform("projection"), left, right, top, bottom);
+			glUniformMatrix4fv(pixshader->getUniform("rotationoffset"), 1, GL_FALSE, value_ptr(rotationOffset));
 
 			glBindFramebuffer(GL_FRAMEBUFFER, leftFBO.FBO);
 
@@ -293,7 +302,7 @@ public:
 
 			pixshader->unbind();
 
-			leftEyeTexture = { (void*)(uintptr_t)leftFBO.colorattch, vr::TextureType_OpenGL, vr::ColorSpace_Gamma };
+			vr::Texture_t leftEyeTexture = { (void*)(uintptr_t)leftFBO.colorattch, vr::TextureType_OpenGL, vr::ColorSpace_Gamma };
 			vr::VRCompositor()->Submit(vr::Eye_Left, &leftEyeTexture);
 		}
 
@@ -302,13 +311,14 @@ public:
 			glUniform2f(pixshader->getUniform("resolution"), static_cast<float>(vr_width), static_cast<float>(vr_height));
 			glUniform1f(pixshader->getUniform("time"), glfwGetTime());
 			glUniform1f(pixshader->getUniform("intersectStepSize"), 0.25);
-			//mat4 view = transpose(vrviewer->getEyeView(vr::Eye_Left));
-			printf("Methinks the Right eye is at location: (%g, %g, %g, %g)\n", view[0][3], view[1][3], view[2][3], view[3][3]);
+			glUniform1f(pixshader->getUniform("viewscale"), viewerscale);
+			mat4 view = vrviewer->getEyeView(vr::Eye_Right);
+			mat4 P = vrviewer->getEyeProj(vr::Eye_Right);
 			glUniformMatrix4fv(pixshader->getUniform("view"), 1, GL_FALSE, value_ptr(view));
+			glUniformMatrix4fv(pixshader->getUniform("projection"), 1, GL_FALSE, value_ptr(P));
+			glUniformMatrix4fv(pixshader->getUniform("headpose"), 1, GL_FALSE, value_ptr(hmdPose));
 			glUniform3fv(pixshader->getUniform("viewoffset"), 1, value_ptr(vrviewer->getPositionOffset()));
-			float left, right, top, bottom;
-			pHMD->GetProjectionRaw(vr::Eye_Left, &left, &right, &top, &bottom);
-			glUniform4f(pixshader->getUniform("projection"), left, right, top, bottom);
+			glUniformMatrix4fv(pixshader->getUniform("rotationoffset"), 1, GL_FALSE, value_ptr(rotationOffset));
 
 			glBindFramebuffer(GL_FRAMEBUFFER, rightFBO.FBO);
 
@@ -318,16 +328,19 @@ public:
 			pixshader->unbind();
 
 			vr::Texture_t rightEyeTexture = { (void*)(uintptr_t)rightFBO.colorattch, vr::TextureType_OpenGL, vr::ColorSpace_Gamma };
-			vr::VRCompositor()->Submit(vr::Eye_Right, &leftEyeTexture);
+			vr::VRCompositor()->Submit(vr::Eye_Right, &rightEyeTexture);
 		}
 
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 		passthru->bind();
 		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, leftFBO.colorattch);
+		glActiveTexture(GL_TEXTURE1);
 		glBindTexture(GL_TEXTURE_2D, rightFBO.colorattch);
-		glUniform1i(passthru->getUniform("pixtex"), 0);
-		glUniform2f(passthru->getUniform("resolution"), static_cast<float>(vr_width), static_cast<float>(vr_height));
+		glUniform1i(passthru->getUniform("leftEye"), 0);
+		glUniform1i(passthru->getUniform("rightEye"), 1);
+		glUniform2f(passthru->getUniform("vr_resolution"), static_cast<float>(vr_width), static_cast<float>(vr_height));
 		glBindVertexArray(VertexArrayUnitPlane);
 		glDrawArrays(GL_TRIANGLES, 0, 6);
 		passthru->unbind();
@@ -404,7 +417,7 @@ int main(int argc, char **argv)
 #ifdef OPENVRBUILD
 	uint32_t vr_width, vr_height;
 	application->pHMD->GetRecommendedRenderTargetSize(&vr_width, &vr_height);
-	windowManager->init(vr_width, vr_height);
+	windowManager->init(vr_width, vr_height/2);
 #else
 	windowManager->init(FRAMEWIDTH, FRAMEHEIGHT);
 #endif
