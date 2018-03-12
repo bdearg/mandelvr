@@ -6,6 +6,8 @@
 #define OPENVRBUILD
 #include <iostream>
 #include <chrono>
+#include <algorithm>
+#include <cmath>
 #include <glad/glad.h>
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -112,13 +114,40 @@ public:
 		}
 	}
 
+  bool aiming = false;
+
 	void mouseCallback(GLFWwindow *window, int button, int action, int mods)
 	{
+		if (button == GLFW_MOUSE_BUTTON_RIGHT)
+		{
+		  aiming = (action == GLFW_PRESS);
+		  glfwGetCursorPos(windowManager->getHandle(), &prevX, &prevY);
+		}
 	}
 
 	void resizeCallback(GLFWwindow *window, int width, int height)
 	{
 		glViewport(0, 0, width, height);
+	}
+	
+	double prevX = -1., prevY = -1.;
+	
+	void cursorPosCallback(GLFWwindow *window, double x, double y)
+	{
+	  if(!aiming)
+	    return;
+    int w, h;
+  	double dX, dY;
+  	
+		glfwGetFramebufferSize(windowManager->getHandle(), &w, &h);
+    dX = (x - prevX)/w;
+    dY = ((prevY-y)/h);
+    prevX = x;
+    prevY = y;
+    
+    cout << "dY: " << dY << endl;
+    
+    mycam.rotate(dX, dY);
 	}
 
 	void init(const std::string& resourceDirectory)
@@ -152,6 +181,8 @@ public:
 
 		pixshader = make_shared<Program>();
 		pixshader->setVerbose(true);
+    //pixshader->setShaderNames(resourceDirectory + "/passthru.vs", resourceDirectory + "/showspace.fs");
+		//pixshader->setShaderNames(resourceDirectory + "/passthru.vs", resourceDirectory + "/IQ_juliabulb_derivative.fs");
 		pixshader->setShaderNames(resourceDirectory + "/passthru.vs", resourceDirectory + "/IQ_mandelbulb_derivative.fs");
 		if (!pixshader->init())
 		{
@@ -248,7 +279,6 @@ public:
 		// Get current frame buffer size.
 		int width, height;
 		glfwGetFramebufferSize(windowManager->getHandle(), &width, &height);
-		float aspect = width / (float)height;
 		glViewport(0, 0, width, height);
 
 		// love too couple input processing with state polling
@@ -260,7 +290,8 @@ public:
 		pixshader->bind();
 		glUniform2f(pixshader->getUniform("resolution"), static_cast<float>(width), static_cast<float>(width));
 		glUniform1f(pixshader->getUniform("time"), glfwGetTime());
-		glUniform1f(pixshader->getUniform("intersectStepSize"), 0.25);
+//		glUniform1f(pixshader->getUniform("intersectStepSize"), 0.25/glm::max(1.f, -log10(length(mycam.pos)/500000.f)));
+		glUniform1f(pixshader->getUniform("intersectStepSize"), 0.0025);
 		glUniformMatrix4fv(pixshader->getUniform("view"), 1, GL_FALSE, value_ptr(view));
 
 		glBindVertexArray(VertexArrayUnitPlane);
@@ -453,7 +484,7 @@ int main(int argc, char **argv)
 
 		// Swap front and back buffers.
 		glfwSwapBuffers(windowManager->getHandle());
-		showFPS(dt);
+		//showFPS(dt);
 		// Poll for and process events.
 		glfwPollEvents();
 	}
