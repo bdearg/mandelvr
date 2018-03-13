@@ -5,16 +5,24 @@ project(rapidproto)
 
 # Use glob to get the list of all source files.
 file(GLOB_RECURSE SOURCES "src/*.cpp" "ext/glad/src/*.c")
+file(GLOB IMGUI_SOURCES "ext/imgui/*.cpp")
+set(SOURCES ${SOURCES} ${IMGUI_SOURCES})
 
 # We don't really need to include header and resource files to build, but it's
 # nice to have them show up in IDEs.
 file(GLOB_RECURSE HEADERS "src/*.h" "ext/glad/*/*.h")
+file(GLOB IMGUI_HEADERS "ext/imgui/*.h")
+set(HEADERS ${HEADERS} ${IMGUI_HEADERS})
+
 file(GLOB_RECURSE GLSL "resources/*.glsl")
 
 include_directories("ext/glad/include")
 
+
 # Set the executable.
 add_executable(${CMAKE_PROJECT_NAME} ${SOURCES} ${HEADERS} ${GLSL})
+
+target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE "ext/imgui/")
 
 # We aren't using it, and it complicates windows compilation
 set(GLFW_VULKAN_STATIC OFF)
