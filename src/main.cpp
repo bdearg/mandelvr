@@ -19,7 +19,11 @@
 #include "MatrixStack.h"
 #include "WindowManager.h"
 #include "camera.h"
+
 #include "VRplayer.hpp"
+
+#include "imgui_impl_glfw_gl3.h"
+
 // used for helper in perspective
 #include "glm/glm.hpp"
 #include "glm/ext.hpp"
@@ -61,7 +65,8 @@ public:
 	camera mycam;
 
 	VRplayer* vrviewer = nullptr;
-
+	
+  ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 	GLfloat intersectStepSize = 10.0;
 
 	GLuint VertexArrayUnitPlane, VertexBufferUnitPlane;
@@ -170,7 +175,10 @@ public:
 		//next function defines how to mix the background color with the transparent pixel in the foreground. 
 		//This is the standard:
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
+		
+    ImGui::CreateContext();
+    ImGui_ImplGlfwGL3_Init(windowManager->getHandle(), true);
+    
 		mat4 look = lookAt(
 			vec3(0, 0, 2),// eye
 			vec3(0, 0, 0),// target
@@ -280,6 +288,8 @@ public:
 		int width, height;
 		glfwGetFramebufferSize(windowManager->getHandle(), &width, &height);
 		glViewport(0, 0, width, height);
+		
+    ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
 		// love too couple input processing with state polling
 		mat4 view = transpose(mycam.process());
@@ -379,6 +389,22 @@ public:
 		vrviewer->playerWaitGetPoses();
 
 	}
+	
+	void doImgui()
+	{
+    static float f = 0.0f;
+    static int counter = 0;
+    ImGui::Text("Hello, world!");                           // Display some text (you can use a format string too)
+    ImGui::SliderFloat("float", &f, 0.0f, 1.0f);            // Edit 1 float using a slider from 0.0f to 1.0f    
+    ImGui::ColorEdit3("clear color", (float*)&clear_color); // Edit 3 floats representing a color
+
+    if (ImGui::Button("Button"))                            // Buttons return true when clicked (NB: most widgets return true when edited/activated)
+        counter++;
+    ImGui::SameLine();
+    ImGui::Text("counter = %d", counter);
+
+    ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+	}
 
 };
 
@@ -474,6 +500,7 @@ int main(int argc, char **argv)
 	{
 		startFrameCapture(dt);
 		// Render scene.
+    ImGui_ImplGlfwGL3_NewFrame();
 #ifdef OPENVRBUILD
 		application->vrviewer->playerControlsTick(windowManager->getHandle(), glfwGetTime() - lasttime);
 		lasttime = glfwGetTime();
@@ -481,6 +508,10 @@ int main(int argc, char **argv)
 #else
 		application->render();
 #endif
+
+		application->doImgui();
+    ImGui::Render();
+    ImGui_ImplGlfwGL3_RenderDrawData(ImGui::GetDrawData());
 
 		// Swap front and back buffers.
 		glfwSwapBuffers(windowManager->getHandle());
@@ -493,6 +524,8 @@ int main(int argc, char **argv)
 	vr::VR_Shutdown();
 #endif
 	// Quit program.
+  ImGui_ImplGlfwGL3_Shutdown();
+  ImGui::DestroyContext();
 	windowManager->shutdown();
 	return 0;
 }
