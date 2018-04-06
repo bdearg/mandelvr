@@ -8,13 +8,46 @@ file(GLOB_RECURSE SOURCES "src/*.cpp" "ext/glad/src/*.c")
 
 # We don't really need to include header and resource files to build, but it's
 # nice to have them show up in IDEs.
-file(GLOB_RECURSE HEADERS "src/*.h" "ext/glad/*/*.h")
+file(GLOB_RECURSE HEADERS "src/*.h" "src/*.hpp" "ext/glad/*/*.h")
 file(GLOB_RECURSE GLSL "resources/*.glsl")
 
 include_directories("ext/glad/include")
 
 # Set the executable.
 add_executable(${CMAKE_PROJECT_NAME} ${SOURCES} ${HEADERS} ${GLSL})
+
+# Check if 32 or 64 bit system.
+set(SIZEOF_VOIDP ${CMAKE_SIZEOF_VOID_P})
+if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+  set(PROCESSOR_ARCH "64")
+else()
+  set(PROCESSOR_ARCH "32")
+endif()
+
+# Get platform.
+if(WIN32)
+	set(PLATFORM_NAME "win")
+elseif(UNIX AND NOT APPLE)
+  if(CMAKE_SYSTEM_NAME MATCHES ".*Linux")
+    set(PLATFORM_NAME "linux")
+    add_definitions(-DLINUX -DPOSIX)
+    if(PROCESSOR_ARCH MATCHES "64")
+        add_definitions(-DLINUX64)
+    endif()
+  endif()
+elseif(APPLE)
+  if(CMAKE_SYSTEM_NAME MATCHES ".*Darwin.*" OR CMAKE_SYSTEM_NAME MATCHES ".*MacOS.*")
+    set(PLATFORM_NAME "osx")
+    add_definitions(-DOSX -DPOSIX)
+    if(BUILD_UNIVERSAL)
+      set(CMAKE_OSX_ARCHITECTURES "i386;x86_64")
+    endif()
+    if(BUILD_OSX_I386)
+      set(PROCESSOR_ARCH "32")
+      set(CMAKE_OSX_ARCHITECTURES "i386")
+    endif()
+  endif()
+endif()
 
 # We aren't using it, and it complicates windows compilation
 set(GLFW_VULKAN_STATIC OFF)
@@ -54,17 +87,29 @@ else()
   endif()
 endif()
 
+# Add OpenVR
+set(OPENVR_DIR "$ENV{OPENVR_DIR}" CACHE PATH "Directory to check for OpenVR")
+if(OPENVR_DIR)
+	message(STATUS "OpenVR environment variable found")
+
+	include_directories(${OPENVR_DIR}/headers)
+	target_link_libraries(${CMAKE_PROJECT_NAME} ${OPENVR_DIR}/bin/${PLATFORM_NAME}${PROCESSOR_ARCH}/openvr_api.lib)
+else()
+	message(WARNING "OpenVR location unspecified!")
+endif()
+
 # Add GLM
 # Get the GLM environment variable. Since GLM is a header-only library, we
 # just need to add it to the include directory.
 set(GLM_INCLUDE_DIR "$ENV{GLM_INCLUDE_DIR}" CACHE PATH "Directory to check for GLM")
+add_definitions(-DGLM_ENABLE_EXPERIMENTAL)
 if(GLM_INCLUDE_DIR)
   include_directories(${GLM_INCLUDE_DIR})
   message(STATUS "GLM environment variable found")
 else()
 # If the GLM_INCLUDE_DIR environment variable is not set, we assume
 # the user has installed GLM properly on their system
-  message(STATUS "GLM environment variable `GLM_INCLUDE_DIR` not found, GLM must be installed with the system")
+  message(WARNING "GLM environment variable `GLM_INCLUDE_DIR` not found, GLM must be installed with the system")
 endif()
 
 # OS specific options and libraries
