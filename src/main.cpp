@@ -61,14 +61,39 @@ public:
 	//camera
 	camera mycam;
 	
+	mat4 bulb_xfrm = mat4(1.);
+	
   ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+  
+  ImVec4 y_color = ImVec4(0.10,0.20,0.30,1.);
+  ImVec4 z_color = ImVec4(0.02,0.10,0.30,1.);
+  ImVec4 w_color = ImVec4(0.30,0.10,0.02,1.);
 	
 	GLfloat intersectStepSize = 10.0;
+	
+	GLfloat zoom_level = 1.0;
+	GLfloat start_offset = 1.0;
 
 	GLuint VertexArrayUnitPlane, VertexBufferUnitPlane;
 
 	void keyCallback(GLFWwindow *window, int key, int scancode, int action, int mods)
 	{
+	  // IMGUI STUFF
+    ImGuiIO& io = ImGui::GetIO();
+    if (action == GLFW_PRESS)
+        io.KeysDown[key] = true;
+    if (action == GLFW_RELEASE)
+        io.KeysDown[key] = false;
+
+    (void)mods; // Modifiers are not reliable across systems
+    io.KeyCtrl = io.KeysDown[GLFW_KEY_LEFT_CONTROL] || io.KeysDown[GLFW_KEY_RIGHT_CONTROL];
+    io.KeyShift = io.KeysDown[GLFW_KEY_LEFT_SHIFT] || io.KeysDown[GLFW_KEY_RIGHT_SHIFT];
+    io.KeyAlt = io.KeysDown[GLFW_KEY_LEFT_ALT] || io.KeysDown[GLFW_KEY_RIGHT_ALT];
+    io.KeySuper = io.KeysDown[GLFW_KEY_LEFT_SUPER] || io.KeysDown[GLFW_KEY_RIGHT_SUPER];
+    if(io.WantCaptureKeyboard)
+      return;
+    // FIN IMGUI STUFF
+    
 		if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
 		{
 			glfwSetWindowShouldClose(window, GL_TRUE);
@@ -111,6 +136,9 @@ public:
 
 	void mouseCallback(GLFWwindow *window, int button, int action, int mods)
 	{
+    if (action == GLFW_PRESS && button >= 0 && button < 3)
+        ImGui_ImpGlfw_SetMouseJustPressed(button);
+        
 		if (button == GLFW_MOUSE_BUTTON_RIGHT)
 		{
 		  aiming = (action == GLFW_PRESS);
@@ -133,12 +161,10 @@ public:
   	double dX, dY;
   	
 		glfwGetFramebufferSize(windowManager->getHandle(), &w, &h);
-    dX = (x - prevX)/w;
-    dY = ((prevY-y)/h);
+    dX = (prevX-x)/w;
+    dY = (prevY-y)/h;
     prevX = x;
     prevY = y;
-    
-    cout << "dY: " << dY << endl;
     
     mycam.rotate(dX, dY);
 	}
@@ -192,7 +218,14 @@ public:
 		pixshader->addUniform("resolution");
 		pixshader->addUniform("time");
 		pixshader->addUniform("view");
+		pixshader->addUniform("clearColor");
+		pixshader->addUniform("yColor");
+		pixshader->addUniform("zColor");
+		pixshader->addUniform("wColor");
 		pixshader->addUniform("intersectStepSize");
+		pixshader->addUniform("zoomLevel");
+		pixshader->addUniform("startOffset");
+		pixshader->addUniform("bulbXfrm");
 	}
 
 	void initGeom(const std::string& resourceDirectory)
@@ -232,7 +265,7 @@ public:
 		int width, height;
 		glfwGetFramebufferSize(windowManager->getHandle(), &width, &height);
 		glViewport(0, 0, width, height);
-    ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+    //ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 		
 		// love too couple input processing with state polling
 		mat4 view = transpose(mycam.process());
@@ -245,7 +278,14 @@ public:
 		glUniform1f(pixshader->getUniform("time"), glfwGetTime());
 //		glUniform1f(pixshader->getUniform("intersectStepSize"), 0.25/glm::max(1.f, -log10(length(mycam.pos)/500000.f)));
 		glUniform1f(pixshader->getUniform("intersectStepSize"), 0.0025);
+		glUniform3fv(pixshader->getUniform("clearColor"), 1, (float*)&clear_color);
+		glUniform3fv(pixshader->getUniform("yColor"), 1, (float*)&y_color);
+		glUniform3fv(pixshader->getUniform("zColor"), 1, (float*)&z_color);
+		glUniform3fv(pixshader->getUniform("wColor"), 1, (float*)&w_color);
+		glUniform1f(pixshader->getUniform("zoomLevel"), zoom_level);
+		glUniform1f(pixshader->getUniform("startOffset"), start_offset);
 		glUniformMatrix4fv(pixshader->getUniform("view"), 1, GL_FALSE, value_ptr(view));
+		glUniformMatrix4fv(pixshader->getUniform("bulbXfrm"), 1, GL_FALSE, value_ptr(bulb_xfrm));
 
 		glBindVertexArray(VertexArrayUnitPlane);
 		glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -256,20 +296,19 @@ public:
 	
 	void doImgui()
 	{
-    static float f = 0.0f;
-    static int counter = 0;
-    ImGui::Text("Hello, world!");                           // Display some text (you can use a format string too)
-    ImGui::SliderFloat("float", &f, 0.0f, 1.0f);            // Edit 1 float using a slider from 0.0f to 1.0f    
+	  ImGui::Begin("Mandelbulb");
+    ImGui::Text("Mandelbulb controls");                           // Display some text (you can use a format string too)
     ImGui::ColorEdit3("clear color", (float*)&clear_color); // Edit 3 floats representing a color
-
-    if (ImGui::Button("Button"))                            // Buttons return true when clicked (NB: most widgets return true when edited/activated)
-        counter++;
-    ImGui::SameLine();
-    ImGui::Text("counter = %d", counter);
-
+    ImGui::ColorEdit3("y color", (float*)&y_color); // Edit 3 floats representing a color
+    ImGui::ColorEdit3("z color", (float*)&z_color); // Edit 3 floats representing a color
+    ImGui::ColorEdit3("w color", (float*)&w_color); // Edit 3 floats representing a color
+    
+    ImGui::SliderFloat("mapping start offset", &start_offset, 0.002f, 30.f, "%.3f", 1.2f);
+    ImGui::SliderFloat("zoom level", &zoom_level, 0.002f, 30.f, "%.3f", 1.2f);
+    
     ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+    ImGui::End();
 	}
-
 };
 
 struct FPSdata {

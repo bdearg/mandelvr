@@ -1,4 +1,5 @@
 // copy-pasted from GLFW3 examples
+// dummied-out the input override though
 // ImGui GLFW binding with OpenGL3 + shaders
 // (GLFW is a cross-platform general purpose library for handling windows, inputs, OpenGL/Vulkan graphics context creation, etc.)
 // (GL3W is a helper library to access OpenGL functions since there is no standard header to access modern OpenGL functions easily. Alternatives are GLEW, Glad, etc.)
@@ -231,6 +232,11 @@ void ImGui_ImplGlfw_CharCallback(GLFWwindow*, unsigned int c)
         io.AddInputCharacter((unsigned short)c);
 }
 
+void ImGui_ImpGlfw_SetMouseJustPressed(int button)
+{
+  g_MouseJustPressed[button] = true;
+}
+
 bool ImGui_ImplGlfwGL3_CreateFontsTexture()
 {
     // Build texture atlas
@@ -350,9 +356,9 @@ void    ImGui_ImplGlfwGL3_InvalidateDeviceObjects()
 
 static void ImGui_ImplGlfw_InstallCallbacks(GLFWwindow* window)
 {
-    glfwSetMouseButtonCallback(window, ImGui_ImplGlfw_MouseButtonCallback);
+//    glfwSetMouseButtonCallback(window, ImGui_ImplGlfw_MouseButtonCallback);
     glfwSetScrollCallback(window, ImGui_ImplGlfw_ScrollCallback);
-    glfwSetKeyCallback(window, ImGui_ImplGlfw_KeyCallback);
+//    glfwSetKeyCallback(window, ImGui_ImplGlfw_KeyCallback);
     glfwSetCharCallback(window, ImGui_ImplGlfw_CharCallback);
 }
 

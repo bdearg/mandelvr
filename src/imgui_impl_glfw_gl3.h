@@ -31,3 +31,7 @@ IMGUI_API void        ImGui_ImplGlfw_MouseButtonCallback(GLFWwindow* window, int
 IMGUI_API void        ImGui_ImplGlfw_ScrollCallback(GLFWwindow* window, double xoffset, double yoffset);
 IMGUI_API void        ImGui_ImplGlfw_KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
 IMGUI_API void        ImGui_ImplGlfw_CharCallback(GLFWwindow* window, unsigned int c);
+
+// addins to make interoperation practical
+
+IMGUI_API void        ImGui_ImpGlfw_SetMouseJustPressed(int button);

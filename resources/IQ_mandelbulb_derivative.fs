@@ -6,10 +6,26 @@
 #define STEPCOUNT 128
 //#define STEPCOUNT 128
 
-uniform mat4 view;
+
+uniform vec3 clearColor;
+
+uniform vec3 yColor;
+uniform vec3 zColor;
+uniform vec3 wColor;
 
 uniform vec2 resolution;
 uniform float time;
+
+uniform float zoomLevel;
+uniform float startOffset;
+
+// bulb transformation
+uniform mat4 bulbXfrm;
+uniform float bulbTheta;
+uniform float bulbPhi;
+
+// camera transformation
+uniform mat4 view;
 
 uniform float intersectStepSize;
 
@@ -94,7 +110,8 @@ float map( in vec3 p, out vec4 resColor )
   float m = dot(w,w);
 
   vec4 trap = vec4(abs(w),m);
-  float dz = 1.0;
+//  float dz = 1.0;
+  float dz = startOffset;
 
   for( int i=0; i<4; i++ )
   {
@@ -170,7 +187,7 @@ float softshadow( in vec3 ro, in vec3 rd, in float k )
 
 vec3 calcNormal( in vec3 pos, in float t, in float px )
 {
-  return vec3(1.0, 0.0, 0.0);
+//  return vec3(1.0, 0.0, 0.0);
   vec4 tmp;
   vec2 eps = vec2( 0.25*px, 0.0 );
   return normalize( vec3(
@@ -197,6 +214,8 @@ vec3 render( in vec2 p, in mat4 cam )
   vec2  sp = (-resolution.xy + 2.0*p) / resolution.y;
   float px = 2.0/(resolution.y*fle);
 
+  sp *= zoomLevel;
+
   vec3  ro = vec3( cam[0].w, cam[1].w, cam[2].w );
   vec3  rd = normalize( (cam*vec4(sp,fle,0.0)).xyz );
 
@@ -209,17 +228,19 @@ vec3 render( in vec2 p, in mat4 cam )
   // color sky
   if( t<0.0 )
   {
-    col  = vec3(0.8,.95,1.0)*(0.6+0.4*rd.y);
-    col += 5.0*vec3(0.8,0.7,0.5)*pow( clamp(dot(rd,light1),0.0,1.0), 32.0 );
+//    col  = vec3(0.8,.95,1.0)*(0.6+0.4*rd.y);
+//    col += 5.0*vec3(0.8,0.7,0.5)*pow( clamp(dot(rd,light1),0.0,1.0), 32.0 );
+    col  = clearColor*(0.6+0.4*rd.y);
+    col += 5.0*clearColor*pow( clamp(dot(rd,light1),0.0,1.0), 32.0 );
   }
   // color fractal
   else
   {
     // color
     col = vec3(0.01);
-    col = mix( col, vec3(0.10,0.20,0.30), clamp(tra.y,0.0,1.0) );
-    col = mix( col, vec3(0.02,0.10,0.30), clamp(tra.z*tra.z,0.0,1.0) );
-    col = mix( col, vec3(0.30,0.10,0.02), clamp(pow(tra.w,6.0),0.0,1.0) );
+    col = mix( col, yColor, clamp(tra.y,0.0,1.0) );
+    col = mix( col, zColor, clamp(tra.z*tra.z,0.0,1.0) );
+    col = mix( col, wColor, clamp(pow(tra.w,6.0),0.0,1.0) );
     col *= 0.5;
     //col = vec3(0.1);
 
@@ -234,12 +255,12 @@ vec3 render( in vec2 p, in mat4 cam )
     // sun
     float sha1 = 1.0;//softshadow( pos+0.001*nor, light1, 32.0 );
     //float sha1 = 1.0; //softshadow( pos+0.001*nor, light1, 32.0 );
-    float dif1 = .0025;//clamp( dot( light1, nor ), 0.0, 1.0 )*sha1;
-    float spe1 = .0025;//pow( clamp(dot(nor,hal),0.0,1.0), 32.0 )*dif1*(0.04+0.96*pow(clamp(1.0-dot(hal,light1),0.0,1.0),5.0));
+    float dif1 = clamp( dot( light1, nor ), 0.0, 1.0 )*sha1;
+    float spe1 = pow( clamp(dot(nor,hal),0.0,1.0), 32.0 )*dif1*(0.04+0.96*pow(clamp(1.0-dot(hal,light1),0.0,1.0),5.0));
     // bounce
-    float dif2 = .0025;//clamp( 0.5 + 0.5*dot( light2, nor ), 0.0, 1.0 )*occ;
+    float dif2 = clamp( 0.5 + 0.5*dot( light2, nor ), 0.0, 1.0 )*occ;
     // sky
-    float dif3 = .0025;//(0.7+0.3*nor.y)*(0.2+0.8*occ);
+    float dif3 = (0.7+0.3*nor.y)*(0.2+0.8*occ);
 
     vec3 lin = vec3(0.0); 
     lin += 7.0*vec3(1.50,1.10,0.70)*dif1;
@@ -253,7 +274,6 @@ vec3 render( in vec2 p, in mat4 cam )
     //col += 8.0*vec3(0.8,0.9,1.0)*(0.2+0.8*occ)*(0.03+0.97*pow(fac,5.0))*smoothstep(0.0,0.1,ref.y )*softshadow( pos+0.01*nor, ref, 2.0 );
     //col = vec3(occ*occ);
   }
-
   // gamma
   return sqrt( col );
 }
@@ -308,6 +328,6 @@ void main()
     }
   col /= float(AA*AA);
 #endif
-
+  
   color = vec4( col, 1.0 );
 }
