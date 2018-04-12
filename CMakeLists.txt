@@ -93,7 +93,17 @@ if(OPENVR_DIR)
 	message(STATUS "OpenVR environment variable found")
 
 	include_directories(${OPENVR_DIR}/headers)
-	target_link_libraries(${CMAKE_PROJECT_NAME} ${OPENVR_DIR}/bin/${PLATFORM_NAME}${PROCESSOR_ARCH}/openvr_api.lib)
+	find_library(OPENVR_LIB openvr_api PATHS ${OPENVR_DIR}/lib/${PLATFORM_NAME}${PROCESSOR_ARCH}/ DOC "The location of the openvr api dll")
+	if(${OPENVR_LIB} STREQUAL "OPENVR_LIB-NOTFOUND")
+		message(FATAL_ERROR "OpenVR not found!")
+		return()
+	endif()
+	target_link_libraries(${CMAKE_PROJECT_NAME} ${OPENVR_LIB})
+#	file(COPY ${OPENVR_DIR}/bin/${PLATFORM_NAME}${PROCESSOR_ARCH}/openvr_api.dll DESTINATION ${PROJECT_BINARY_DIR}/${CMAKE_BUILD_TYPE})
+	add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+		COMMAND ${CMAKE_COMMAND} -E copy_if_different
+			"${OPENVR_DIR}/bin/${PLATFORM_NAME}${PROCESSOR_ARCH}/openvr_api.dll"
+			$<TARGET_FILE_DIR:${PROJECT_NAME}>)
 else()
 	message(WARNING "OpenVR location unspecified!")
 endif()

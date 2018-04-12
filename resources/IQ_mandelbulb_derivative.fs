@@ -143,7 +143,7 @@ float intersect( in vec3 ro, in vec3 rd, out vec4 rescol, in float px )
   for( int i=0; i<128; i++  )
   { 
     vec3 pos = ro + rd*t;
-    float th = intersectStepSize*px*t;
+    float th = (intersectStepSize/20.)*px*t;
     float h = map( pos, trap );
     if( t>dis.y || h<th ) break;
     t += h;
@@ -181,7 +181,8 @@ void vr_ray_projection(in vec2 clipspace, in mat4 cam, out vec3 ro, out vec3 rd)
 
   vec3 eyeoffset = inverse(cam)[3].xyz - (headpose)[3].xyz;
   ro = viewoffset*vec3(1.0, 1.0, -1.0) + (headpose)[3].xyz*viewscale + eyeoffset*UNITIPD*viewscale;
-  rd = trcam[0].xyz*vspr.x + trcam[1].xyz*vspr.y + trcam[2].xyz*vspr.z;
+//  rd = trcam[0].xyz*vspr.x + trcam[1].xyz*vspr.z - trcam[2].xyz*vspr.y;
+  rd = trcam[0].xyz*vspr.z + trcam[1].xyz*vspr.x - trcam[2].xyz*vspr.y;
 }
 
 vec3 calcNormal( in vec3 pos, in float t, in float px )

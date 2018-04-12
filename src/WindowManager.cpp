@@ -133,6 +133,7 @@ bool WindowManager::init(int const width, int const height)
 	glfwSetKeyCallback(windowHandle, key_callback);
 	glfwSetMouseButtonCallback(windowHandle, mouse_callback);
 	glfwSetFramebufferSizeCallback(windowHandle, resize_callback);
+	glfwSetJoystickCallback(joystick_callback);
 
 	return true;
 }
@@ -174,5 +175,14 @@ void WindowManager::resize_callback(GLFWwindow * window, int in_width, int in_he
 	if (instance && instance->callbacks)
 	{
 		instance->callbacks->resizeCallback(window, in_width, in_height);
+	}
+}
+
+
+void WindowManager::joystick_callback(int joy, int event)
+{
+	if (instance && instance->callbacks)
+	{
+		instance->callbacks->joystickCallback(joy, event);
 	}
 }

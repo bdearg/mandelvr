@@ -31,6 +31,7 @@ using namespace std;
 using namespace glm;
 
 #define FPSBUFSIZE 15
+#define MAXBUTTONS 10
 
 // VR defaults
 #if 0
@@ -55,6 +56,8 @@ public:
 	std::shared_ptr<Program> pixshader;
 	std::shared_ptr<Program> passthru;
 
+	string shaderLoc;
+
 	//camera
 	camera mycam;
 
@@ -63,6 +66,8 @@ public:
 	GLfloat intersectStepSize = 10.0;
 
 	GLuint VertexArrayUnitPlane, VertexBufferUnitPlane;
+
+	bool VRButtonJustPressed[MAXBUTTONS];
 
 	struct EyeFbo {
 		GLuint FBO;
@@ -110,6 +115,35 @@ public:
 		{
 			mycam.d = 0;
 		}
+
+		if (key == GLFW_KEY_R && action == GLFW_PRESS)
+		{
+			// reload shader
+			shared_ptr<Program> tmp = pixshader;
+
+			pixshader = make_shared<Program>();
+			pixshader->setVerbose(true);
+			pixshader->setShaderNames(shaderLoc + "/passthru.vs", shaderLoc + "/IQ_mandelbulb_derivative.fs");
+			if (!pixshader->init())
+			{
+				std::cerr << "One or more shaders failed to compile... no change made!" << std::endl;
+				pixshader = tmp;
+			}
+			else
+			{
+				pixshader->addAttribute("vertPos");
+				pixshader->addUniform("resolution");
+				pixshader->addUniform("time");
+				pixshader->addUniform("view");
+				pixshader->addUniform("projection");
+				pixshader->addUniform("intersectStepSize");
+				pixshader->addUniform("viewoffset");
+				pixshader->addUniform("viewscale");
+				pixshader->addUniform("P");
+				pixshader->addUniform("headpose");
+				pixshader->addUniform("rotationoffset");
+			}
+		}
 	}
 
 	void mouseCallback(GLFWwindow *window, int button, int action, int mods)
@@ -125,6 +159,8 @@ public:
 	{
 		GLSL::checkVersion();
 
+		// im hacker
+		shaderLoc = resourceDirectory;
 
 		// Set background color.
 		glClearColor(0.12f, 0.34f, 0.56f, 1.0f);
@@ -268,18 +304,38 @@ public:
 
 		pixshader->unbind();
 
+
+		for (int i = GLFW_JOYSTICK_1; i <= GLFW_JOYSTICK_LAST; i++)
+		{
+			if (glfwJoystickPresent(i))
+			{
+				int count;
+				const unsigned char* buttons = glfwGetJoystickButtons(i, &count);
+				const char* name = glfwGetJoystickName(i);
+				cout << name << ": " << count << " buttons" << endl;
+			}
+		}
 	}
 
+	void joystickCallback(int joy, int event)
+	{
+		if (event == GLFW_DISCONNECTED && joy > GLFW_JOYSTICK_2)
+		{
+			cerr << "This program needs 2 joysticks to run!" << endl;
+			exit(EXIT_FAILURE);
+		}
+	}
 
 	void VRrender() {
 		uint32_t vr_width, vr_height;
 		pHMD->GetRecommendedRenderTargetSize(&vr_width, &vr_height);
 		glViewport(0, 0, vr_width, vr_height);
 
+		mat4 worldTransform = glm::mat4(1.f); // glm::rotate(90.f, vec3(0, 0, 1));
 		
 		mat4 hmdPose = vrviewer->getHeadsetPose();
 		mat4 rotationOffset = vrviewer->getRotationOffset();
-		cout << glm::to_string(rotationOffset) << endl;
+//		cout << glm::to_string(rotationOffset) << endl;
 		float viewerscale = static_cast<float>(vrviewer->getPlayerScale());
 		{ // Left eye
 			pixshader->bind();
@@ -287,9 +343,10 @@ public:
 			glUniform1f(pixshader->getUniform("time"), glfwGetTime());
 			glUniform1f(pixshader->getUniform("intersectStepSize"), 0.25);
 			glUniform1f(pixshader->getUniform("viewscale"), viewerscale);
-			mat4 view = (vrviewer->getEyeView(vr::Eye_Left));
+			mat4 view = vrviewer->getEyeView(vr::Eye_Left);
+			mat4 viewrot = view*worldTransform;
 			mat4 P = vrviewer->getEyeProj(vr::Eye_Left);
-			glUniformMatrix4fv(pixshader->getUniform("view"), 1, GL_FALSE, value_ptr(view));
+			glUniformMatrix4fv(pixshader->getUniform("view"), 1, GL_FALSE, value_ptr(viewrot));
 			glUniformMatrix4fv(pixshader->getUniform("projection"), 1, GL_FALSE, value_ptr(P));
 			glUniformMatrix4fv(pixshader->getUniform("headpose"), 1, GL_FALSE, value_ptr(hmdPose));
 			glUniform3fv(pixshader->getUniform("viewoffset"), 1, value_ptr(vrviewer->getPositionOffset()));
@@ -313,8 +370,9 @@ public:
 			glUniform1f(pixshader->getUniform("intersectStepSize"), 0.25);
 			glUniform1f(pixshader->getUniform("viewscale"), viewerscale);
 			mat4 view = vrviewer->getEyeView(vr::Eye_Right);
+			mat4 viewrot = view*worldTransform;
 			mat4 P = vrviewer->getEyeProj(vr::Eye_Right);
-			glUniformMatrix4fv(pixshader->getUniform("view"), 1, GL_FALSE, value_ptr(view));
+			glUniformMatrix4fv(pixshader->getUniform("view"), 1, GL_FALSE, value_ptr(viewrot));
 			glUniformMatrix4fv(pixshader->getUniform("projection"), 1, GL_FALSE, value_ptr(P));
 			glUniformMatrix4fv(pixshader->getUniform("headpose"), 1, GL_FALSE, value_ptr(hmdPose));
 			glUniform3fv(pixshader->getUniform("viewoffset"), 1, value_ptr(vrviewer->getPositionOffset()));
@@ -349,6 +407,12 @@ public:
 
 	}
 
+	void VRinputs()
+	{
+		int count;
+		const unsigned char* axes = glfwGetJoystickButtons(GLFW_JOYSTICK_1, &count);
+//		cout << "Button count: " << count << endl;
+	}
 };
 
 static void CreateEyeFBO(UINT width, UINT height, GLuint* fbo, GLuint* colorattch) {
@@ -389,7 +453,7 @@ void showFPS(FPSdata &dt)
 	dt.fpsbuffer[(++dt.fpsoff) % FPSBUFSIZE] = frame_duration;
 	dt.fpsoff %= FPSBUFSIZE;
 	double avgfps = 0.0; for (int i = 0; i < FPSBUFSIZE; i++) { avgfps += 1e6 / dt.fpsbuffer[i].count(); } avgfps /= FPSBUFSIZE;
-	cout << "Frame: " << dt.fpsbuffer[dt.fpsoff].count() / 1e3 << "ms, FPS: " << 1e6 / dt.fpsbuffer[dt.fpsoff].count() << ", FPS(avg): " << avgfps << endl;
+	//cout << "Frame: " << dt.fpsbuffer[dt.fpsoff].count() / 1e3 << "ms, FPS: " << 1e6 / dt.fpsbuffer[dt.fpsoff].count() << ", FPS(avg): " << avgfps << endl;
 }
 
 //*********************************************************************************************************
@@ -447,6 +511,7 @@ int main(int argc, char **argv)
 		application->vrviewer->playerControlsTick(windowManager->getHandle(), glfwGetTime() - lasttime);
 		lasttime = glfwGetTime();
 		application->VRrender();
+		application->VRinputs();
 #else
 		application->render();
 #endif

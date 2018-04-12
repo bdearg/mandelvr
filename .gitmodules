@@ -7,3 +7,6 @@
 [submodule "ext/openvr"]
 	path = ext/openvr
 	url = https://github.com/ValveSoftware/openvr
+[submodule "ext/ImguiVR"]
+	path = ext/ImguiVR
+	url = https://www.github.com/temcgraw/ImguiVR

@@ -37,6 +37,8 @@ public:
 
 	virtual void resizeCallback(GLFWwindow *window, int in_width, int in_height) = 0;
 
+	virtual void joystickCallback(int joy, int event) = 0;
+
 };
 
 // This class is responsible for all window management code, i.e. GLFW3 code
@@ -79,6 +81,7 @@ private:
 	static void key_callback(GLFWwindow *window, int key, int scancode, int action, int mods);
 	static void mouse_callback(GLFWwindow *window, int button, int action, int mods);
 	static void resize_callback(GLFWwindow *window, int in_width, int in_height);
+	static void joystick_callback(int joy, int event);
 
 };
 

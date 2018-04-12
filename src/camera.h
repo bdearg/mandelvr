@@ -25,7 +25,7 @@ public:
 	camera()
 	{
 		w = a = s = d = 0;
-		pos = rot = glm::vec3(0, 0, 0);
+		pos = glm::vec3(0, 0, 0);
 	}
 	glm::mat4 process()
 	{
