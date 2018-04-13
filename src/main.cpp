@@ -69,7 +69,7 @@ public:
   ImVec4 z_color = ImVec4(0.02,0.10,0.30,1.);
   ImVec4 w_color = ImVec4(0.30,0.10,0.02,1.);
 	
-	GLfloat intersectStepSize = 10.0;
+	GLfloat intersectStepSize = 0.0025;
 	
 	GLfloat zoom_level = 1.0;
 	GLfloat start_offset = 1.0;
@@ -129,6 +129,22 @@ public:
 		if (key == GLFW_KEY_D && action == GLFW_RELEASE)
 		{
 			mycam.d = 0;
+		}
+		if (key == GLFW_KEY_Q && action == GLFW_PRESS)
+		{
+			mycam.q = 1;
+		}
+		if (key == GLFW_KEY_Q && action == GLFW_RELEASE)
+		{
+			mycam.q = 0;
+		}
+		if (key == GLFW_KEY_E && action == GLFW_PRESS)
+		{
+			mycam.e = 1;
+		}
+		if (key == GLFW_KEY_E && action == GLFW_RELEASE)
+		{
+			mycam.e = 0;
 		}
 	}
 
@@ -277,12 +293,12 @@ public:
 		glUniform2f(pixshader->getUniform("resolution"), static_cast<float>(width), static_cast<float>(width));
 		glUniform1f(pixshader->getUniform("time"), glfwGetTime());
 //		glUniform1f(pixshader->getUniform("intersectStepSize"), 0.25/glm::max(1.f, -log10(length(mycam.pos)/500000.f)));
-		glUniform1f(pixshader->getUniform("intersectStepSize"), 0.0025);
+		glUniform1f(pixshader->getUniform("intersectStepSize"), intersectStepSize*mycam.zoomLevel);
 		glUniform3fv(pixshader->getUniform("clearColor"), 1, (float*)&clear_color);
 		glUniform3fv(pixshader->getUniform("yColor"), 1, (float*)&y_color);
 		glUniform3fv(pixshader->getUniform("zColor"), 1, (float*)&z_color);
 		glUniform3fv(pixshader->getUniform("wColor"), 1, (float*)&w_color);
-		glUniform1f(pixshader->getUniform("zoomLevel"), zoom_level);
+		glUniform1f(pixshader->getUniform("zoomLevel"), mycam.zoomLevel);
 		glUniform1f(pixshader->getUniform("startOffset"), start_offset);
 		glUniformMatrix4fv(pixshader->getUniform("view"), 1, GL_FALSE, value_ptr(view));
 		glUniformMatrix4fv(pixshader->getUniform("bulbXfrm"), 1, GL_FALSE, value_ptr(bulb_xfrm));
@@ -304,7 +320,8 @@ public:
     ImGui::ColorEdit3("w color", (float*)&w_color); // Edit 3 floats representing a color
     
     ImGui::SliderFloat("mapping start offset", &start_offset, 0.002f, 30.f, "%.3f", 1.2f);
-    ImGui::SliderFloat("zoom level", &zoom_level, 0.002f, 30.f, "%.3f", 1.2f);
+    ImGui::SliderFloat("zoom level", &mycam.zoomLevel, 0.002f, 30.f, "%.3f", 1.2f);
+    ImGui::SliderFloat("intersect step", &intersectStepSize, 1e-20, 1e-1f, "%.3e", 1.5f);
     
     ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
     ImGui::End();

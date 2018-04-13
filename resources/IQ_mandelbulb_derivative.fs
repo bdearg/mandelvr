@@ -28,6 +28,7 @@ uniform float bulbPhi;
 uniform mat4 view;
 
 uniform float intersectStepSize;
+uniform int intersectStepCount;
 
 out vec4 color;
 
@@ -216,7 +217,7 @@ vec3 render( in vec2 p, in mat4 cam )
 
   sp *= zoomLevel;
 
-  vec3  ro = vec3( cam[0].w, cam[1].w, cam[2].w );
+  vec3  ro = zoomLevel*vec3( cam[0].w, cam[1].w, cam[2].w );
   vec3  rd = normalize( (cam*vec4(sp,fle,0.0)).xyz );
 
   // intersect fractal
