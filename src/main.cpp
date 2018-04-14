@@ -18,6 +18,8 @@
 #include "WindowManager.h"
 #include "camera.h"
 #include "VRplayer.hpp"
+
+#include "imgui_impl_glfw_gl3.h"
 // used for helper in perspective
 #include "glm/glm.hpp"
 #include "glm/ext.hpp"
@@ -61,9 +63,10 @@ public:
 	//camera
 	camera mycam;
 
-	VRplayer* vrviewer = nullptr;
+	unique_ptr<VRplayer> vrviewer;
 
-	GLfloat intersectStepSize = 10.0;
+	GLfloat intersectStepSize = 0.25;
+	GLint intersectStepCount = 128;
 
 	GLuint VertexArrayUnitPlane, VertexBufferUnitPlane;
 
@@ -76,6 +79,23 @@ public:
 
 	EyeFbo leftFBO;
 	EyeFbo rightFBO;
+
+	void addShaderAttributes()
+	{
+		pixshader->addAttribute("vertPos");
+		pixshader->addUniform("resolution");
+		pixshader->addUniform("time");
+		pixshader->addUniform("view");
+		pixshader->addUniform("projection");
+		pixshader->addUniform("intersectStepSize");
+		pixshader->addUniform("intersectStepCount");
+		pixshader->addUniform("unitIPD");
+		pixshader->addUniform("viewoffset");
+		pixshader->addUniform("viewscale");
+		pixshader->addUniform("P");
+		pixshader->addUniform("headpose");
+		pixshader->addUniform("rotationoffset");
+	}
 
 	void keyCallback(GLFWwindow *window, int key, int scancode, int action, int mods)
 	{
@@ -131,18 +151,13 @@ public:
 			}
 			else
 			{
-				pixshader->addAttribute("vertPos");
-				pixshader->addUniform("resolution");
-				pixshader->addUniform("time");
-				pixshader->addUniform("view");
-				pixshader->addUniform("projection");
-				pixshader->addUniform("intersectStepSize");
-				pixshader->addUniform("viewoffset");
-				pixshader->addUniform("viewscale");
-				pixshader->addUniform("P");
-				pixshader->addUniform("headpose");
-				pixshader->addUniform("rotationoffset");
+				addShaderAttributes();
 			}
+		}
+
+		if (key == GLFW_KEY_O && action == GLFW_PRESS)
+		{
+			vrviewer->resetView();
 		}
 	}
 
@@ -178,6 +193,9 @@ public:
 		//This is the standard:
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
+		ImGui::CreateContext();
+		ImGui_ImplGlfwGL3_Init(windowManager->getHandle(), true);
+
 		mat4 look = lookAt(
 			vec3(0, 0, 2),// eye
 			vec3(0, 0, 0),// target
@@ -195,17 +213,7 @@ public:
 			exit(1);
 		}
 		pixshader->init();
-		pixshader->addAttribute("vertPos");
-		pixshader->addUniform("resolution");
-		pixshader->addUniform("time");
-		pixshader->addUniform("view");
-		pixshader->addUniform("projection");
-		pixshader->addUniform("intersectStepSize");
-		pixshader->addUniform("viewoffset");
-		pixshader->addUniform("viewscale");
-		pixshader->addUniform("P");
-		pixshader->addUniform("headpose");
-		pixshader->addUniform("rotationoffset");
+		addShaderAttributes();
 
 		passthru = make_shared<Program>();
 		passthru->setVerbose(true);
@@ -268,7 +276,7 @@ public:
 			exit(1);
 		}
 
-		vrviewer = new VRplayer(pHMD);
+		vrviewer.reset(new VRplayer(pHMD));
 	}
 
 	void initVRFBO() {
@@ -341,7 +349,9 @@ public:
 			pixshader->bind();
 			glUniform2f(pixshader->getUniform("resolution"), static_cast<float>(vr_width), static_cast<float>(vr_height));
 			glUniform1f(pixshader->getUniform("time"), glfwGetTime());
-			glUniform1f(pixshader->getUniform("intersectStepSize"), 0.25);
+			glUniform1f(pixshader->getUniform("intersectStepSize"), intersectStepSize);
+			glUniform1i(pixshader->getUniform("intersectStepCount"), intersectStepCount);
+			glUniform1f(pixshader->getUniform("unitIPD"), vrviewer->getFocusMult());
 			glUniform1f(pixshader->getUniform("viewscale"), viewerscale);
 			mat4 view = vrviewer->getEyeView(vr::Eye_Left);
 			mat4 viewrot = view*worldTransform;
@@ -367,7 +377,9 @@ public:
 			pixshader->bind();
 			glUniform2f(pixshader->getUniform("resolution"), static_cast<float>(vr_width), static_cast<float>(vr_height));
 			glUniform1f(pixshader->getUniform("time"), glfwGetTime());
-			glUniform1f(pixshader->getUniform("intersectStepSize"), 0.25);
+			glUniform1f(pixshader->getUniform("intersectStepSize"), intersectStepSize);
+			glUniform1i(pixshader->getUniform("intersectStepCount"), intersectStepCount);
+			glUniform1f(pixshader->getUniform("unitIPD"), vrviewer->getFocusMult());
 			glUniform1f(pixshader->getUniform("viewscale"), viewerscale);
 			mat4 view = vrviewer->getEyeView(vr::Eye_Right);
 			mat4 viewrot = view*worldTransform;
@@ -390,6 +402,7 @@ public:
 		}
 
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		ImGui_ImplGlfwGL3_NewFrame();
 
 		passthru->bind();
 		glActiveTexture(GL_TEXTURE0);
@@ -402,16 +415,51 @@ public:
 		glBindVertexArray(VertexArrayUnitPlane);
 		glDrawArrays(GL_TRIANGLES, 0, 6);
 		passthru->unbind();
+		doImgui();
+		ImGui::Render();
+		ImGui_ImplGlfwGL3_RenderDrawData(ImGui::GetDrawData());
 
 		vrviewer->playerWaitGetPoses();
 
 	}
 
-	void VRinputs()
+	void doImgui()
 	{
-		int count;
-		const unsigned char* axes = glfwGetJoystickButtons(GLFW_JOYSTICK_1, &count);
-//		cout << "Button count: " << count << endl;
+		ImGui::Begin("Mandelbulb");
+		ImGui::Text("Mandelbulb controls");                           // Display some text (you can use a format string too)
+
+		ImGui::SliderInt("Intersect Step Count", &intersectStepCount, 32, 1024);
+		ImGui::SliderFloat("Intersect Step Size", &intersectStepSize, 2.5e-12, 15., "%.3e", 10.f);
+
+
+		vec3 pos = vrviewer->getPositionOffset();
+		ImGui::Text("X: %.3f Y: %.3f Z: %.3f", pos.x, pos.y, pos.z);
+
+		ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+		ImGui::End();
+
+		ImGui::Begin("Controls");
+		ImGui::Text("KEYBOARD");
+		ImGui::Text("R - reload shader");
+		ImGui::Text("O - Reset to origin");
+		ImGui::Text("Esc - Exit");
+
+		ImGui::NewLine();
+		ImGui::NewLine();
+		ImGui::Text("OCULUS");
+		ImGui::NewLine();
+		ImGui::Text("L Hand");
+		ImGui::Text("Joystick - 'flat' movement");
+		ImGui::Text("A - Shrink");
+		ImGui::Text("B - Reduce inter-eye distance");
+		ImGui::Text("Squeeze trigger - Boost");
+		ImGui::NewLine();
+		ImGui::Text("R Hand");
+		ImGui::Text("Joystick - U/D movement + rotation");
+		ImGui::Text("X - Grow");
+		ImGui::Text("Y - Increase inter-eye distance");
+		ImGui::Text("Squeeze trigger - Boost");
+		ImGui::End();
 	}
 };
 
@@ -511,7 +559,6 @@ int main(int argc, char **argv)
 		application->vrviewer->playerControlsTick(windowManager->getHandle(), glfwGetTime() - lasttime);
 		lasttime = glfwGetTime();
 		application->VRrender();
-		application->VRinputs();
 #else
 		application->render();
 #endif
@@ -526,6 +573,8 @@ int main(int argc, char **argv)
 #ifdef OPENVRBUILD
 	vr::VR_Shutdown();
 #endif
+	ImGui_ImplGlfwGL3_Shutdown();
+	ImGui::DestroyContext();
 	// Quit program.
 	windowManager->shutdown();
 	return 0;
