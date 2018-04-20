@@ -30,6 +30,12 @@ uniform mat4 view;
 uniform float intersectStepSize;
 uniform int intersectStepCount;
 
+uniform int modulo;
+
+uniform float escapeFactor;
+uniform float mapResultFactor;
+uniform int mapIterCount;
+
 out vec4 color;
 
 /*
@@ -114,27 +120,27 @@ float map( in vec3 p, out vec4 resColor )
 //  float dz = 1.0;
   float dz = startOffset;
 
-  for( int i=0; i<4; i++ )
+  for( int i=0; i<mapIterCount; i++ )
   {
-    dz = 8.0*pow(sqrt(m),7.0)*dz + 1.0;
+    dz = modulo*pow(sqrt(m),modulo-1.)*dz + 1.0;
     //dz = 8.0*pow(m,3.5)*dz + 1.0;
 
     float r = length(w);
-    float b = 8.0*acos( w.y/r);
-    float a = 8.0*atan( w.x, w.z );
-    w = p + pow(r,8.0) * vec3( sin(b)*sin(a), cos(b), sin(b)*cos(a) );
+    float b = modulo*acos( w.y/r);
+    float a = modulo*atan( w.x, w.z );
+    w = p + pow(r,modulo) * vec3( sin(b)*sin(a), cos(b), sin(b)*cos(a) );
 
     trap = min( trap, vec4(abs(w),m) );
 
     m = dot(w,w);
     // 
-    if( m > 256.0 )
+    if( m > modulo*modulo*escapeFactor )
       break;
   }
 
   resColor = vec4(m,trap.yzw);
 
-  return 0.25*log(m)*sqrt(m)/dz;
+  return mapResultFactor*0.25*log(m)*sqrt(m)/dz;
 }
 
 float intersect( in vec3 ro, in vec3 rd, out vec4 rescol, in float px )
@@ -152,7 +158,7 @@ float intersect( in vec3 ro, in vec3 rd, out vec4 rescol, in float px )
   vec4 trap;
 
   float t = dis.x;
-  for( int i=0; i<128; i++  )
+  for( int i=0; i<intersectStepCount; i++  )
   { 
     vec3 pos = ro + rd*t;
     float th = intersectStepSize*px*t;

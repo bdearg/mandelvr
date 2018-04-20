@@ -69,10 +69,16 @@ public:
   ImVec4 z_color = ImVec4(0.02,0.10,0.30,1.);
   ImVec4 w_color = ImVec4(0.30,0.10,0.02,1.);
 	
-	GLfloat intersectStepSize = 0.0025;
+	GLfloat intersect_step_size = 0.0025;
+	GLint intersect_step_count = 128;
 	
 	GLfloat zoom_level = 1.0;
 	GLfloat start_offset = 1.0;
+	
+	GLint modulo = 8;
+	GLfloat escape_factor = 1.;
+	GLfloat map_result_factor = 1.;
+	GLint map_iter_count = 4;
 
 	GLuint VertexArrayUnitPlane, VertexBufferUnitPlane;
 
@@ -145,6 +151,17 @@ public:
 		if (key == GLFW_KEY_E && action == GLFW_RELEASE)
 		{
 			mycam.e = 0;
+		}
+		if (key == GLFW_KEY_O && action == GLFW_PRESS)
+		{
+		  mat4 look = lookAt(
+		    vec3(0, 0, 2),// eye
+		    vec3(0, 0, 0),// target
+		    vec3(0, 1, 0)// up
+		    );
+		  vec4 eyepos = look * vec4(0, 0, 0, 1);
+		  mycam.pos = vec3(eyepos);
+		  mycam.rot = vec3(0, 0, 0);
 		}
 	}
 
@@ -239,7 +256,12 @@ public:
 		pixshader->addUniform("zColor");
 		pixshader->addUniform("wColor");
 		pixshader->addUniform("intersectStepSize");
+		pixshader->addUniform("intersectStepCount");
 		pixshader->addUniform("zoomLevel");
+		pixshader->addUniform("modulo");
+		pixshader->addUniform("escapeFactor");
+		pixshader->addUniform("mapResultFactor");
+		pixshader->addUniform("mapIterCount");
 		pixshader->addUniform("startOffset");
 		pixshader->addUniform("bulbXfrm");
 	}
@@ -293,13 +315,18 @@ public:
 		glUniform2f(pixshader->getUniform("resolution"), static_cast<float>(width), static_cast<float>(width));
 		glUniform1f(pixshader->getUniform("time"), glfwGetTime());
 //		glUniform1f(pixshader->getUniform("intersectStepSize"), 0.25/glm::max(1.f, -log10(length(mycam.pos)/500000.f)));
-		glUniform1f(pixshader->getUniform("intersectStepSize"), intersectStepSize*mycam.zoomLevel);
+		glUniform1f(pixshader->getUniform("intersectStepSize"), intersect_step_size*mycam.zoomLevel);
+		glUniform1i(pixshader->getUniform("intersectStepCount"), intersect_step_count);
 		glUniform3fv(pixshader->getUniform("clearColor"), 1, (float*)&clear_color);
 		glUniform3fv(pixshader->getUniform("yColor"), 1, (float*)&y_color);
 		glUniform3fv(pixshader->getUniform("zColor"), 1, (float*)&z_color);
 		glUniform3fv(pixshader->getUniform("wColor"), 1, (float*)&w_color);
 		glUniform1f(pixshader->getUniform("zoomLevel"), mycam.zoomLevel);
 		glUniform1f(pixshader->getUniform("startOffset"), start_offset);
+		glUniform1i(pixshader->getUniform("modulo"), modulo);
+		glUniform1f(pixshader->getUniform("escapeFactor"), escape_factor);
+		glUniform1f(pixshader->getUniform("mapResultFactor"), map_result_factor);
+		glUniform1i(pixshader->getUniform("mapIterCount"), map_iter_count);
 		glUniformMatrix4fv(pixshader->getUniform("view"), 1, GL_FALSE, value_ptr(view));
 		glUniformMatrix4fv(pixshader->getUniform("bulbXfrm"), 1, GL_FALSE, value_ptr(bulb_xfrm));
 
@@ -321,7 +348,12 @@ public:
     
     ImGui::SliderFloat("mapping start offset", &start_offset, 0.002f, 30.f, "%.3f", 1.2f);
     ImGui::SliderFloat("zoom level", &mycam.zoomLevel, 0.002f, 30.f, "%.3f", 1.2f);
-    ImGui::SliderFloat("intersect step", &intersectStepSize, 1e-20, 1e-1f, "%.3e", 1.5f);
+    ImGui::SliderFloat("intersect step size", &intersect_step_size, 1e-20, 1e-1f, "%.3e", 1.5f);
+    ImGui::SliderInt("intersect step count", &intersect_step_count, 1, 1024);
+    ImGui::SliderInt("Mandelbulb modulo", &modulo, 2, 32);
+    ImGui::SliderFloat("Mandelbulb escape factor", &escape_factor, .01, 10., "%.3f", 4.2f);
+    ImGui::SliderFloat("Mandelbulb map result factor", &map_result_factor, .01, 10., "%.3f", 4.2f);
+    ImGui::SliderInt("Mandelbulb map iter count", &map_iter_count, 1, 32);
     
     ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
     ImGui::End();

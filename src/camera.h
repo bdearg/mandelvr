@@ -89,6 +89,7 @@ public:
 			
 
 		glm::mat4 view = glm::lookAt(pos, pos + viewVec(), glm::vec3(0, 1, 0));
+//		glm::vec4 movement = glm::transpose(view)*glm::vec4(zVel, 0, xVel, 0);
 		glm::vec4 movement = glm::transpose(view)*glm::vec4(zVel, 0, xVel, 0);
 		pos+= zoomLevel*glm::vec3(movement);
 
