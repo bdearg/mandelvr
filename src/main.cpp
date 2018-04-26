@@ -6,6 +6,7 @@
 #include <iostream>
 #include <chrono>
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <glad/glad.h>
 
@@ -41,6 +42,8 @@ using namespace glm;
 #define FRAMEHEIGHT 480
 #endif
 
+#define BOXTEXSIZE 2048
+
 class MandelBulbRenderer
 {
   public:
@@ -57,6 +60,8 @@ public:
 
 	// Our shader program
 	std::shared_ptr<Program> pixshader;
+	
+	std::shared_ptr<Program> ccSphereProg;
 
 	//camera
 	camera mycam;
@@ -81,6 +86,24 @@ public:
 	GLint map_iter_count = 4;
 
 	GLuint VertexArrayUnitPlane, VertexBufferUnitPlane;
+	
+	enum texture_dirs {
+	  TOP = 0,
+	  BOTTOM,
+	  LEFT,
+	  RIGHT,
+	  FRONT,
+	  BACK,
+	  NUM_SIDES
+	};
+	
+	Shape skybox_mesh;
+	
+	struct CCsphere {
+	  array<GLuint, NUM_SIDES> skyFBO;
+	  array<GLuint, NUM_SIDES> skyTex;
+	  GLint xres, yres;
+	} ccsphere;
 
 	void keyCallback(GLFWwindow *window, int key, int scancode, int action, int mods)
 	{
@@ -227,6 +250,12 @@ public:
 		
     ImGui::CreateContext();
     ImGui_ImplGlfwGL3_Init(windowManager->getHandle(), true);
+    
+    ccsphere.xres = 1024;
+    ccsphere.yres = 1024;
+    ccsphere.skyFBO.fill(0);
+    ccsphere.skyTex.fill(0);
+    createCCSphere();
 		
 		mat4 look = lookAt(
 		  vec3(0, 0, 2),// eye
@@ -246,24 +275,34 @@ public:
 			std::cerr << "One or more shaders failed to compile... exiting!" << std::endl;
 			exit(1);
 		}
-		pixshader->init();
 		pixshader->addAttribute("vertPos");
-		pixshader->addUniform("resolution");
-		pixshader->addUniform("time");
-		pixshader->addUniform("view");
-		pixshader->addUniform("clearColor");
-		pixshader->addUniform("yColor");
-		pixshader->addUniform("zColor");
-		pixshader->addUniform("wColor");
-		pixshader->addUniform("intersectStepSize");
-		pixshader->addUniform("intersectStepCount");
-		pixshader->addUniform("zoomLevel");
-		pixshader->addUniform("modulo");
-		pixshader->addUniform("escapeFactor");
-		pixshader->addUniform("mapResultFactor");
-		pixshader->addUniform("mapIterCount");
-		pixshader->addUniform("startOffset");
-		pixshader->addUniform("bulbXfrm");
+    pixshader->addUniform("resolution");
+    pixshader->addUniform("time");
+    pixshader->addUniform("view");
+    pixshader->addUniform("clearColor");
+    pixshader->addUniform("yColor");
+    pixshader->addUniform("zColor");
+    pixshader->addUniform("wColor");
+    pixshader->addUniform("intersectStepSize");
+    pixshader->addUniform("intersectStepCount");
+    pixshader->addUniform("zoomLevel");
+    pixshader->addUniform("modulo");
+    pixshader->addUniform("escapeFactor");
+    pixshader->addUniform("mapResultFactor");
+    pixshader->addUniform("mapIterCount");
+    pixshader->addUniform("startOffset");
+    pixshader->addUniform("bulbXfrm");
+    
+    ccSphereProg = make_shared<Program>();
+    ccSphereProg->setVerbose(true);
+    ccSphereProg->setShaderNames(resourceDirectory + "/ccsphere.vs", resourceDirectory + "/ccsphere.fs");
+    if (!ccSphereProg->init())
+    {
+			std::cerr << "One or more shaders failed to compile... exiting!" << std::endl;
+			exit(1);
+    }
+    ccSphereProg->addAttribute("vertPos");
+    ccSphereProg->addAttribute("vertTex");
 	}
 
 	void initGeom(const std::string& resourceDirectory)
@@ -295,26 +334,33 @@ public:
 		//key function to get up how many elements to pull out at a time (3)
 		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (void*)0);
 
+    skybox_mesh.loadMesh(resourceDirectory + "/skybox.obj");
+    skybox_mesh.init();
 	}
-
-	void render()
+	
+	// maybe call it an "onionbox" later or smthn
+	void renderSkybox(vec3 origin)
 	{
-		// Get current frame buffer size.
+	  // up
+	  // down
+	  // left
+	  // right
+	  // front
+	  // back
+	}
+	
+	// bind your framebuffer before calling this function
+	void renderBulb(vec3 origin, vec3 direction)
+	{
 		int width, height;
 		glfwGetFramebufferSize(windowManager->getHandle(), &width, &height);
-		glViewport(0, 0, width, height);
-    //ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 		
-		// love too couple input processing with state polling
-		mat4 view = transpose(mycam.process());
+		mat4 view = lookAt(origin, origin + direction, 
 		
 		// Clear framebuffer.
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);	
-
 		pixshader->bind();
 		glUniform2f(pixshader->getUniform("resolution"), static_cast<float>(width), static_cast<float>(width));
-		glUniform1f(pixshader->getUniform("time"), glfwGetTime());
-//		glUniform1f(pixshader->getUniform("intersectStepSize"), 0.25/glm::max(1.f, -log10(length(mycam.pos)/500000.f)));
 		glUniform1f(pixshader->getUniform("intersectStepSize"), intersect_step_size*mycam.zoomLevel);
 		glUniform1i(pixshader->getUniform("intersectStepCount"), intersect_step_count);
 		glUniform3fv(pixshader->getUniform("clearColor"), 1, (float*)&clear_color);
@@ -328,14 +374,103 @@ public:
 		glUniform1f(pixshader->getUniform("mapResultFactor"), map_result_factor);
 		glUniform1i(pixshader->getUniform("mapIterCount"), map_iter_count);
 		glUniformMatrix4fv(pixshader->getUniform("view"), 1, GL_FALSE, value_ptr(view));
-		glUniformMatrix4fv(pixshader->getUniform("bulbXfrm"), 1, GL_FALSE, value_ptr(bulb_xfrm));
+
+		pixshader->unbind(); 
+	}
+
+	void render()
+	{
+		// Get current frame buffer size.
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		glViewport(0, 0, width, height);
+		
+		// love too couple input processing with state polling
+		mat4 view = transpose(mycam.process());
+		vec3 origin = vec3(view * vec4(0, 0, 0, 1));
+//		glUniform1f(pixshader->getUniform("time"), glfwGetTime());
+//		glUniformMatrix4fv(pixshader->getUniform("bulbXfrm"), 1, GL_FALSE, value_ptr(bulb_xfrm));
 
 		glBindVertexArray(VertexArrayUnitPlane);
 		glDrawArrays(GL_TRIANGLES, 0, 6);
-
-		pixshader->unbind();
 		
 	}
+	
+	vec4 dirEnumToDirection(int dir)
+	{
+	  switch(dir)
+	  {
+	    default:
+	      cerr << "Invalid direction enum: " << dir << endl;
+	    case FRONT:
+	      return vec4(0, 0, -1, 0);
+	      break;
+      case BACK:
+	      return vec4(0, 0, +1, 0);
+        break;
+      case LEFT:
+	      return vec4(-1, 0, 0, 0);
+        break;
+      case RIGHT:
+	      return vec4(+1, 0, 0, 0);
+        break;
+      case TOP:
+	      return vec4(0, +1, 0, 0);
+        break;
+      case BOTTOM:
+	      return vec4(0, -1, 0, 0);
+        break;
+	  }
+	}
+	
+	// ugh this is a gross hack and I need to think of a more algorithmic/sane thing to do here
+	vec4 dirEnumToUp(int dir)
+	{
+	  switch(dir)
+	  {
+	    default:
+	      cerr << "Invalid direction enum: " << dir << endl;
+	    case FRONT:
+	      return vec4(0, +1, 0, 0);
+	      break;
+	    case BACK:
+	      return vec4(0, +1, 0, 0);
+	      break;
+	    case LEFT:
+	      return vec4(0, +1, 0, 0);
+	      break;
+	    case RIGHT:
+	      return vec4(0, +1, 0, 0);
+	      break;
+	    case TOP:
+	      return vec4(0, 0, +1, 0);
+	      break;
+	    case BOTTOM:
+	      return vec4(0, 0, -1, 0);
+	      break;
+    }
+	}
+	
+	void createCCSphere()
+	{
+	  // init fbos and other gl structures
+	  // load in and map the ccsphere model
+	  for(int i = 0; i < NUM_SIDES; i++)
+    {
+      CreateFBOandTex(ccsphere.xres, ccsphere.yres, &ccsphere.skyFBO[i], &ccsphere.skyTex[i]);
+    }
+	}
+
+  void CreateFBOandTex(unsigned int width, unsigned int height, GLuint* fbo, GLuint* colorattch) {
+	  glGenFramebuffers(1, fbo);
+	  glBindFramebuffer(GL_FRAMEBUFFER, *fbo);
+
+	  glGenTextures(1, colorattch);
+	  glBindTexture(GL_TEXTURE_2D, *colorattch);
+	  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
+	  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+	  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, *colorattch, 0);
+  }
 	
 	void doImgui()
 	{
