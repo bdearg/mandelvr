@@ -32,6 +32,8 @@ uniform int intersectStepCount;
 
 uniform int modulo;
 
+uniform float fle;
+
 uniform float escapeFactor;
 uniform float mapResultFactor;
 uniform int mapIterCount;
@@ -212,18 +214,21 @@ vec3 render( in vec2 p, in mat4 cam )
 {
   // ray setup
   // this is our distance from the bulb
-  const float fle = 1.5;
 
   // sp: scaled point - Converting from:
   // (0, 0) -> resolution.xy
   // to
-  // (-res.x/res.y, -1) -> (res.x/res.y, 1)
-  vec2  sp = (-resolution.xy + 2.0*p) / resolution.y;
+  // (-1, -1) -> (1, 1)
+  vec2  sp = (-resolution.xy + 2.0*p);
+  sp.x /= resolution.x;
+  sp.y /= resolution.y;
   float px = 2.0/(resolution.y*fle);
 
-  sp *= zoomLevel;
+  //sp *= zoomLevel;
 
+  // extract translation component of view matrix
   vec3  ro = zoomLevel*vec3( cam[0].w, cam[1].w, cam[2].w );
+  // extract direction from view matrix and given pixel to be marched
   vec3  rd = normalize( (cam*vec4(sp,fle,0.0)).xyz );
 
   // intersect fractal
@@ -322,7 +327,6 @@ void main()
       cw, ro.z, 
       0.0, 0.0, 0.0, 1.0);*/
   mat4 cam = view;
-
   // render
 #if AA<2
   vec3 col = render(  gl_FragCoord.xy, cam );
