@@ -120,6 +120,7 @@ public:
     mandelshader->addUniform("resolution");
     mandelshader->addUniform("time");
     mandelshader->addUniform("view");
+    mandelshader->addUniform("camOrigin");
     mandelshader->addUniform("clearColor");
     mandelshader->addUniform("yColor");
     mandelshader->addUniform("zColor");
@@ -208,14 +209,8 @@ public:
     }
     if (key == GLFW_KEY_O && action == GLFW_PRESS)
     {
-      mat4 look = lookAt(
-        vec3(0, 0, 2),// eye
-        vec3(0, 0, 0),// target
-        vec3(0, 1, 0)// up
-        );
-      vec4 eyepos = look * vec4(0, 0, 0, 1);
-      mycam.pos = vec3(eyepos);
-      mycam.rot = vec3(0, 0, 0);
+      mycam.pos = vec3(0, 0, 2);
+      mycam.pitch = mycam.yaw = 0;
     }
     if (key == GLFW_KEY_P && action == GLFW_PRESS)
     {
@@ -336,14 +331,9 @@ public:
     ccsphere.skyFBO.fill(0);
     ccsphere.skyTex = 0;
     createCCSphere();
-    
-    mat4 look = lookAt(
-      vec3(0, 0, 2),// eye
-      vec3(0, 0, 0),// target
-      vec3(0, 1, 0)// up
-      );
-    vec4 eyepos = look * vec4(0, 0, 0, 1);
-    mycam.pos = vec3(eyepos.x, eyepos.y, eyepos.z);
+
+    mycam.pos = vec3(0, 0, 2);
+    mycam.pitch = mycam.yaw = 0;
 
     mandelshader = make_shared<Program>();
     mandelshader->setVerbose(true);
@@ -418,7 +408,7 @@ public:
   {
     int width, height;
     // for each direction, bind a frame buffer, set the view matrix appropriately, and render
-    mat4 camview = mycam.process();
+    mycam.process();
   
     for(int i = 0; i < NUM_SIDES; i++)
     {
@@ -436,7 +426,7 @@ public:
     glBindTexture(GL_TEXTURE_2D_ARRAY, ccsphere.skyTex);
     glUniform1i(ccSphereshader->getUniform("sphereMap"), 0);
     
-    vec3 camdir = mycam.viewVec();
+    vec3 camdir = mycam.getForward();
     
     mat4 camAtOrigin = transpose(lookAt(vec3(0, 0, 0), camdir, vec3(0, 1, 0)) * translate(mat4(), skybox_translate));
     glUniformMatrix4fv(ccSphereshader->getUniform("MVP"), 1, GL_FALSE, value_ptr(camAtOrigin));
@@ -469,6 +459,7 @@ public:
     glUniform1f(mandelshader->getUniform("mapResultFactor"), map_result_factor);
     glUniform1i(mandelshader->getUniform("mapIterCount"), map_iter_count);
     glUniform1f(mandelshader->getUniform("time"), glfwGetTime());
+    glUniform3fv(mandelshader->getUniform("camOrigin"), 1, value_ptr(mycam.pos));
     
     glUniformMatrix4fv(mandelshader->getUniform("view"), 1, GL_FALSE, value_ptr(view));
     
@@ -492,7 +483,7 @@ public:
     }
     else
     {
-      renderBulb(mycam.pos, mycam.viewVec(), vec3(0, 1, 0), vec2(width, height));
+      renderBulb(mycam.pos, mycam.getForward(), vec3(0, 1, 0), vec2(width, height));
     }
 #endif
   }
@@ -632,7 +623,7 @@ public:
       ImGui::End();
     }
     
-    vec3 viewdir = mycam.viewVec();
+    vec3 viewdir = mycam.getForward();
     vec3 xforward = mycam.xMovement();
     vec3 zforward = mycam.zMovement();
     
@@ -641,6 +632,21 @@ public:
     ImGui::LabelText("View Position:", "X: %0.2f, Y: %0.2f, Z: %0.2f", mycam.pos.x, mycam.pos.y, mycam.pos.z);
     ImGui::LabelText("X Forward:", "X: %0.2f, Y: %0.2f, Z: %0.2f", xforward.x, xforward.y, xforward.z);
     ImGui::LabelText("Z Forward:", "X: %0.2f, Y: %0.2f, Z: %0.2f", zforward.x, zforward.y, zforward.z);
+    ImGui::LabelText("Theta:", "%0.2f pi", mycam.yaw / pi<float>());
+    ImGui::LabelText("Phi:", "%0.2f", mycam.pitch);
+    
+    
+    if(ImGui::TreeNode("View Matrix"))
+    {
+      ImGuiTextBuffer matrix_text;
+      mat4 view = mycam.getView();
+      for(int i = 0; i < 4; i++)
+      {
+        matrix_text.appendf("%5.2f %5.2f %5.2f %5.2f\n", view[0][i], view[1][i], view[2][i], view[3][i]);
+      }
+      ImGui::Text(matrix_text.c_str());
+      ImGui::TreePop();
+    }
     ImGui::End();
   }
 };

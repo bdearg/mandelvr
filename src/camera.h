@@ -20,7 +20,8 @@ class camera
 {
 public:
 	glm::vec3 pos;
-	glm::vec3 rot;
+	double pitch;
+	double yaw;
 	
 	float zoomLevel = 1.0;
 	
@@ -29,22 +30,14 @@ public:
 	camera()
 	{
 		w = a = s = d = q = e = 0;
-		pos = rot = glm::vec3(0, 0, 0);
+		pos = glm::vec3(0, 0, 0);
+		pitch = yaw = 0.;
 	}
 	
-	glm::mat4 getDirection()
+	void rotate(double dyaw, double dpitch)
 	{
-		glm::mat4 R = glm::mat4(1);
-		// something about this is wrong
-		R = glm::rotate(R, rot.y, glm::vec3(0, 1, 0)); // yaw
-		R = glm::rotate(R, rot.z, glm::vec3(1, 0, 0)); // pitch
-		return R;
-	}
-	
-	void rotate(double yaw, double pitch)
-	{
-	  rot.z = glm::clamp(rot.z + pitch, -glm::pi<double>()/4., glm::pi<double>()/4.);
-	  rot.y += yaw;
+	  pitch = glm::clamp(pitch + dpitch, -glm::pi<double>()/4., glm::pi<double>()/4.);
+	  yaw = glm::mod(yaw + dyaw,2*glm::pi<double>());
 	}
 	
 	void translate(glm::vec3 offset)
@@ -52,24 +45,39 @@ public:
 	  pos += offset;
 	}
 	
-	glm::vec3 viewVec()
+	glm::vec3 getForward()
 	{
-	  return getDirection() * glm::vec4(0, 0, -1, 0);
+	  return glm::normalize(glm::vec3(
+	    cos(pitch)*sin(yaw),
+	    sin(pitch),
+	    cos(pitch)*cos(yaw)
+	  ));
 	}
+	
+	glm::vec3 getUp()
+	{
+	  return glm::normalize(glm::cross(getRight(), getForward()));
+	}
+  
+  glm::vec3 getRight()
+  {
+    // cross forward with global up to get the vector to the right
+    return glm::normalize(glm::cross(getForward(), glm::vec3(0, 1, 0)));
+  }
 	
 	glm::mat4 getView()
 	{
-		return glm::lookAt(pos, pos + viewVec(), glm::vec3(0, 1, 0));
+		return glm::lookAt(pos, pos + getForward(), getUp());
   }
   
   glm::vec3 xMovement()
   {
-    return glm::vec3(getView()*glm::vec4(1, 0, 0, 0));
+    return getRight();
   }
   
   glm::vec3 zMovement()
   {
-    return glm::vec3(getView()*glm::vec4(0, 0, 1, 0));
+    return getForward();
   }
 	
 	glm::mat4 process()
@@ -86,14 +94,14 @@ public:
 			zoomLevel *= 1./scaling_rate;
 		
 		if (w == 1)
-		  zVel += moveConst;
-		if (s == 1)
 		  zVel -= moveConst;
+		if (s == 1)
+		  zVel += moveConst;
 		
 		if (a == 1)
-		  xVel += moveConst;
+		  xVel -= moveConst;
 		if (d == 1)
-			xVel -= moveConst;
+			xVel += moveConst;
 		/*
 		if (a == 1)
 			rot.y += 0.01;
@@ -101,8 +109,8 @@ public:
 			rot.y -= 0.01;
 	  */
 
-		pos += zoomLevel*(xVel*xMovement());
-		pos += zoomLevel*(zVel*zMovement());
+		pos += zoomLevel*xVel*xMovement();
+		pos += zoomLevel*zVel*zMovement();
 
 		return getView();
 	}

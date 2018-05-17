@@ -24,6 +24,7 @@ uniform mat4 bulbXfrm;
 uniform float bulbTheta;
 uniform float bulbPhi;
 
+uniform vec3 camOrigin;
 // camera transformation
 uniform mat4 view;
 
@@ -105,7 +106,7 @@ vec2 isphere( in vec4 sph, in vec3 ro, in vec3 rd )
   float c = dot(oc,oc) - sph.w*sph.w;
   float h = b*b - c;
 
-  if( h<0.0 ) return vec2(-1.0);
+  if( h<0.0) return vec2(-1.0);
 
   h = sqrt( h );
 
@@ -135,7 +136,6 @@ float map( in vec3 p, out vec4 resColor )
     trap = min( trap, vec4(abs(w),m) );
 
     m = dot(w,w);
-    // 
     if( m > modulo*modulo*escapeFactor )
       break;
   }
@@ -227,7 +227,7 @@ vec3 render( in vec2 p, in mat4 cam )
   //sp *= zoomLevel;
 
   // extract translation component of view matrix
-  vec3  ro = zoomLevel*vec3( cam[0].w, cam[1].w, cam[2].w );
+  vec3  ro = camOrigin;//zoomLevel*vec3( cam[0].w, cam[1].w, cam[2].w );
   // extract direction from view matrix and given pixel to be marched
   vec3  rd = normalize( (cam*vec4(sp,fle,0.0)).xyz );
 
