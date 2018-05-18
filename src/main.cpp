@@ -42,7 +42,7 @@ using namespace glm;
 #define FRAMEHEIGHT 480
 #endif
 
-#define BOXTEXSIZE 1024
+#define BOXTEXSIZE 256
 
 class MandelBulbRenderer
 {
@@ -80,7 +80,7 @@ public:
   GLfloat zoom_level = 1.0;
   GLfloat start_offset = 1.0;
   
-  GLfloat fle = 1.5;
+  GLfloat fle = 1.;
   
   GLint modulo = 8;
   GLfloat escape_factor = 1.;
@@ -88,6 +88,10 @@ public:
   GLint map_iter_count = 1;
 
   GLuint VertexArrayUnitPlane, VertexBufferUnitPlane;
+  
+  bool showHUD = false;
+  bool hud_countdown = false;
+  chrono::steady_clock::time_point showHUDTime;
   
   vec3 skybox_translate = vec3(0, 0, 1.);
   
@@ -97,12 +101,12 @@ public:
   string shaderLoc;
   
   enum texture_dirs {
-    TOP = 0,
-    BOTTOM,
-    LEFT,
-    RIGHT,
     FRONT,
+    RIGHT,
+    LEFT,
     BACK,
+    TOP,
+    BOTTOM,
     NUM_SIDES
   };
   
@@ -262,6 +266,16 @@ public:
 				addShaderAttributes();
 			}
 		}
+		
+		if(mycam.anyButtonPressed())
+		{
+		  showHUD = true;
+		}
+		else if(action == GLFW_RELEASE)
+		{
+		  showHUDTime = chrono::steady_clock::now() + chrono::duration_cast<chrono::steady_clock::duration>(chrono::seconds(1));
+		  hud_countdown = true;
+		}
   }
 
   bool aiming = false;
@@ -275,6 +289,7 @@ public:
     if (button == GLFW_MOUSE_BUTTON_RIGHT && !io.WantCaptureMouse)
     {
       aiming = (action == GLFW_PRESS);
+      glfwSetInputMode(windowManager->getHandle(), GLFW_CURSOR, aiming ? GLFW_CURSOR_HIDDEN : GLFW_CURSOR_NORMAL);
       glfwGetCursorPos(windowManager->getHandle(), &prevX, &prevY);
     }
   }
@@ -428,8 +443,8 @@ public:
     
     vec3 camdir = mycam.getForward();
     
-    mat4 camAtOrigin = transpose(lookAt(vec3(0, 0, 0), camdir, vec3(0, 1, 0)) * translate(mat4(), skybox_translate));
-    glUniformMatrix4fv(ccSphereshader->getUniform("MVP"), 1, GL_FALSE, value_ptr(camAtOrigin));
+    mat4 camAtOrigin = lookAt(vec3(0, 0, 0), camdir, vec3(0, 1, 0)) * translate(mat4(), skybox_translate);
+    glUniformMatrix4fv(ccSphereshader->getUniform("MVP"), 1, GL_TRUE, value_ptr(camAtOrigin));
     skybox_mesh.draw(ccSphereshader);
     ccSphereshader->unbind();
   }
@@ -439,7 +454,8 @@ public:
   {
     glViewport(0, 0, bufferRes.x, bufferRes.y);
     
-    mat4 view = transpose(lookAt(origin, origin + direction, up));
+    mat4 view = lookAt(origin, origin + direction, up);
+    vec3 camorigin = mycam.pos * mycam.zoomLevel;
     
     // Clear framebuffer.
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); 
@@ -459,9 +475,9 @@ public:
     glUniform1f(mandelshader->getUniform("mapResultFactor"), map_result_factor);
     glUniform1i(mandelshader->getUniform("mapIterCount"), map_iter_count);
     glUniform1f(mandelshader->getUniform("time"), glfwGetTime());
-    glUniform3fv(mandelshader->getUniform("camOrigin"), 1, value_ptr(mycam.pos));
+    glUniform3fv(mandelshader->getUniform("camOrigin"), 1, value_ptr(origin));
     
-    glUniformMatrix4fv(mandelshader->getUniform("view"), 1, GL_FALSE, value_ptr(view));
+    glUniformMatrix4fv(mandelshader->getUniform("view"), 1, GL_TRUE, value_ptr(view));
     
     glBindVertexArray(VertexArrayUnitPlane);
     glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -473,17 +489,17 @@ public:
   {
     int width, height;
     glfwGetFramebufferSize(windowManager->getHandle(), &width, &height);
-//    renderSkybox();
-#if 1
+    renderSkybox();
+#if 0
     mycam.process();
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     if(cubemode)
     {
-      renderBulb(mycam.pos, dirEnumToDirection(foo), dirEnumToUp(foo), vec2(ccsphere.xres, ccsphere.yres));
+      renderBulb(mycam.pos*mycam.zoomLevel, dirEnumToDirection(foo), dirEnumToUp(foo), vec2(ccsphere.xres, ccsphere.yres));
     }
     else
     {
-      renderBulb(mycam.pos, mycam.getForward(), vec3(0, 1, 0), vec2(width, height));
+      renderBulb(mycam.pos*mycam.zoomLevel, mycam.getForward(), vec3(0, 1, 0), vec2(width, height));
     }
 #endif
   }
@@ -495,10 +511,10 @@ public:
       default:
         cerr << "Invalid direction enum: " << dir << endl;
       case FRONT:
-        return vec4(0, 0, -1, 0);
+        return vec4(0, 0, +1, 0);
         break;
       case BACK:
-        return vec4(0, 0, +1, 0);
+        return vec4(0, 0, -1, 0);
         break;
       case LEFT:
         return vec4(-1, 0, 0, 0);
@@ -573,6 +589,12 @@ public:
   
   void doImgui()
   {
+    if(hud_countdown && chrono::steady_clock::now() < showHUDTime)
+    {
+      showHUD = false;
+      hud_countdown = false;
+    }
+
     ImGui::Begin("Mandelbulb");
     ImGui::Text("Mandelbulb controls");                           // Display some text (you can use a format string too)
     ImGui::ColorEdit3("clear color", (float*)&clear_color); // Edit 3 floats representing a color
@@ -648,6 +670,23 @@ public:
       ImGui::TreePop();
     }
     ImGui::End();
+    
+    if(ImGui::Begin("Position HUD", &showHUD, ImGuiWindowFlags_NoTitleBar|ImGuiWindowFlags_NoResize|ImGuiWindowFlags_AlwaysAutoResize|ImGuiWindowFlags_NoMove|ImGuiWindowFlags_NoSavedSettings|ImGuiWindowFlags_NoFocusOnAppearing|ImGuiWindowFlags_NoNav))
+    {
+      ImGui::Text("Position: X: %0.2f, Y: %0.2f, Z: %0.2f", mycam.pos.x, mycam.pos.y, mycam.pos.z);
+      
+      ImGui::Text("Zoom Level:");
+      ImGui::SameLine(); ImGui::ProgressBar(-log(mycam.zoomLevel)/1e1);
+      
+      if(hud_countdown)
+      {
+        ImGui::Text("Vanish in %ld seconds", chrono::duration_cast<chrono::seconds>(showHUDTime - chrono::steady_clock::now()).count());
+      }
+      ImGui::End();
+    }
+
+
+    ImGui::ShowDemoWindow();
   }
 };
 

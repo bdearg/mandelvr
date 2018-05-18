@@ -34,9 +34,19 @@ public:
 		pitch = yaw = 0.;
 	}
 	
+	bool anyButtonPressed()
+	{
+	  return w || a || s || d || q || e;
+	}
+	
+	bool noButtonsPressed()
+	{
+	  return !w && !a && !s && !d && !q && !e;
+	}
+	
 	void rotate(double dyaw, double dpitch)
 	{
-	  pitch = glm::clamp(pitch + dpitch, -glm::pi<double>()/4., glm::pi<double>()/4.);
+	  pitch = glm::clamp(pitch + dpitch, -glm::pi<double>()/2. + 1e-3, glm::pi<double>()/2. - 1e-3);
 	  yaw = glm::mod(yaw + dyaw,2*glm::pi<double>());
 	}
 	
@@ -67,7 +77,7 @@ public:
 	
 	glm::mat4 getView()
 	{
-		return glm::lookAt(pos, pos + getForward(), getUp());
+		return glm::lookAt(pos*zoomLevel, (pos*zoomLevel) + getForward(), getUp());
   }
   
   glm::vec3 xMovement()
@@ -89,9 +99,15 @@ public:
 		
 		const float moveConst = .01;
 		if (q == 1)
+	  {
 			zoomLevel *= scaling_rate;
+			pos *= scaling_rate;
+		}
 		if (e == 1)
-			zoomLevel *= 1./scaling_rate;
+		{
+			zoomLevel = glm::min(1.f, zoomLevel/scaling_rate);
+			pos /= scaling_rate;
+		}
 		
 		if (w == 1)
 		  zVel -= moveConst;
