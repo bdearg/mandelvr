@@ -105,8 +105,8 @@ public:
     RIGHT,
     LEFT,
     BACK,
-    TOP,
     BOTTOM,
+    TOP,
     NUM_SIDES
   };
   
@@ -443,7 +443,7 @@ public:
     
     vec3 camdir = mycam.getForward();
     
-    mat4 camAtOrigin = lookAt(vec3(0, 0, 0), camdir, vec3(0, 1, 0)) * translate(mat4(), skybox_translate);
+    mat4 camAtOrigin = glm::inverse(lookAt(vec3(0, 0, 0), camdir, mycam.getUp())) * translate(mat4(), skybox_translate);
     glUniformMatrix4fv(ccSphereshader->getUniform("MVP"), 1, GL_TRUE, value_ptr(camAtOrigin));
     skybox_mesh.draw(ccSphereshader);
     ccSphereshader->unbind();
@@ -489,19 +489,16 @@ public:
   {
     int width, height;
     glfwGetFramebufferSize(windowManager->getHandle(), &width, &height);
-    renderSkybox();
-#if 0
-    mycam.process();
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
     if(cubemode)
     {
-      renderBulb(mycam.pos*mycam.zoomLevel, dirEnumToDirection(foo), dirEnumToUp(foo), vec2(ccsphere.xres, ccsphere.yres));
+      renderSkybox();
     }
     else
     {
+      mycam.process();
+      glBindFramebuffer(GL_FRAMEBUFFER, 0);
       renderBulb(mycam.pos*mycam.zoomLevel, mycam.getForward(), vec3(0, 1, 0), vec2(width, height));
     }
-#endif
   }
   
   vec4 dirEnumToDirection(int dir)
@@ -614,36 +611,6 @@ public:
     
     ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
     ImGui::End();
-    
-    if(cubemode)
-    {
-      ImGui::Begin("Side controls");
-      if(ImGui::Button("Top"))
-      {
-        foo = TOP;
-      }
-      if(ImGui::Button("Bottom"))
-      {
-        foo = BOTTOM;
-      }
-      if(ImGui::ArrowButton("Left", ImGuiDir_Left))
-      {
-        foo = LEFT;
-      }
-      if(ImGui::ArrowButton("Right", ImGuiDir_Right))
-      {
-        foo = RIGHT;
-      }
-      if(ImGui::ArrowButton("Front", ImGuiDir_Up))
-      {
-        foo = FRONT;
-      }
-      if(ImGui::ArrowButton("Back", ImGuiDir_Down))
-      {
-        foo = BACK;
-      }
-      ImGui::End();
-    }
     
     vec3 viewdir = mycam.getForward();
     vec3 xforward = mycam.xMovement();
