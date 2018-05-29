@@ -25,6 +25,8 @@ public:
 	
 	float zoomLevel = 1.0;
 	
+	float velocityFactor = 1.0;
+	
 	const float scaling_rate = 0.98;
 	int w, a, s, d, q, e;
 	camera()
@@ -46,8 +48,8 @@ public:
 	
 	void rotate(double dyaw, double dpitch)
 	{
-	  pitch = glm::clamp(pitch + dpitch, -glm::pi<double>()/2. + 1e-3, glm::pi<double>()/2. - 1e-3);
-	  yaw = glm::mod(yaw + dyaw,2*glm::pi<double>());
+	  pitch = glm::clamp(pitch - dpitch, -glm::pi<double>()/2. + 1e-3, glm::pi<double>()/2. - 1e-3);
+	  yaw = glm::mod(yaw - dyaw,2*glm::pi<double>());
 	}
 	
 	void translate(glm::vec3 offset)
@@ -93,7 +95,6 @@ public:
 	glm::mat4 process()
 	{
 	  // zoom-based camera
-		float distance_scalar = 1.0;
 		float zVel = 0;
 		float xVel = 0;
 		
@@ -101,12 +102,10 @@ public:
 		if (q == 1)
 	  {
 			zoomLevel *= scaling_rate;
-			pos *= scaling_rate;
 		}
 		if (e == 1)
 		{
 			zoomLevel = glm::min(1.f, zoomLevel/scaling_rate);
-			pos /= scaling_rate;
 		}
 		
 		if (w == 1)
@@ -125,8 +124,8 @@ public:
 			rot.y -= 0.01;
 	  */
 
-		pos += zoomLevel*xVel*xMovement();
-		pos += zoomLevel*zVel*zMovement();
+		pos += zoomLevel*velocityFactor*xVel*xMovement();
+		pos += zoomLevel*velocityFactor*zVel*zMovement();
 
 		return getView();
 	}

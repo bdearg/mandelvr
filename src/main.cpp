@@ -8,10 +8,14 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cassert>
 #include <glad/glad.h>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
+
+#define DIRECTION_IMPLEMENTATION
+#include "directions.h"
 
 #include "GLSL.h"
 #include "Program.h"
@@ -19,6 +23,8 @@
 #include "MatrixStack.h"
 #include "WindowManager.h"
 #include "camera.h"
+#include "MarchingLayer.h"
+#include "MarchingManager.h"
 
 #include "imgui_impl_glfw_gl3.h"
 
@@ -44,13 +50,6 @@ using namespace glm;
 
 #define BOXTEXSIZE 256
 
-class MandelBulbRenderer
-{
-  public:
-  // some sort of voxel data structure within which to store our "render"?
-  // openGL Compute program IDs
-};
-
 class Application : public EventCallbacks
 {
 
@@ -66,74 +65,40 @@ public:
   //camera
   camera mycam;
   
-  mat4 bulb_xfrm = mat4(1.);
-  
-  ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
-  
-  ImVec4 y_color = ImVec4(0.10,0.20,0.30,1.);
-  ImVec4 z_color = ImVec4(0.02,0.10,0.30,1.);
-  ImVec4 w_color = ImVec4(0.30,0.10,0.02,1.);
-  
-  GLfloat intersect_step_size = 0.0025;
-  GLint intersect_step_count = 128;
-  
-  GLfloat zoom_level = 1.0;
-  GLfloat start_offset = 1.0;
-  
-  GLfloat fle = 1.;
-  
-  GLint modulo = 8;
-  GLfloat escape_factor = 1.;
-  GLfloat map_result_factor = 1.;
-  GLint map_iter_count = 1;
+  MandelRenderer mrender;
 
-  GLuint VertexArrayUnitPlane, VertexBufferUnitPlane;
+  std::shared_ptr<MarchingManager> marcher;
+  
+  GLuint feedbackBuf, queryObject;
   
   bool showHUD = false;
   bool hud_countdown = false;
   chrono::steady_clock::time_point showHUDTime;
   
   vec3 skybox_translate = vec3(0, 0, 1.);
-  
-  int foo = 0;
-  bool cubemode = false;
+  bool cubemode = true;
+  bool freezeRender = false;
   
   string shaderLoc;
   
-  enum texture_dirs {
-    FRONT,
-    RIGHT,
-    LEFT,
-    BACK,
-    BOTTOM,
-    TOP,
-    NUM_SIDES
-  };
-  
-  Shape skybox_mesh;
-  
-  struct CCsphere {
-    array<GLuint, NUM_SIDES> skyFBO;
-    GLuint skyTex;
-    GLint xres, yres;
-  } ccsphere;
+  GLuint commonSkyStencil;
   
   void addShaderAttributes()
   {
     mandelshader->addAttribute("vertPos");
     mandelshader->addUniform("resolution");
-    mandelshader->addUniform("time");
     mandelshader->addUniform("view");
     mandelshader->addUniform("camOrigin");
     mandelshader->addUniform("clearColor");
     mandelshader->addUniform("yColor");
     mandelshader->addUniform("zColor");
     mandelshader->addUniform("wColor");
-    mandelshader->addUniform("intersectStepSize");
+    mandelshader->addUniform("intersectThreshold");
     mandelshader->addUniform("intersectStepCount");
     mandelshader->addUniform("zoomLevel");
     mandelshader->addUniform("modulo");
     mandelshader->addUniform("fle");
+    mandelshader->addUniform("exhaust");
     mandelshader->addUniform("escapeFactor");
     mandelshader->addUniform("mapResultFactor");
     mandelshader->addUniform("mapIterCount");
@@ -156,7 +121,10 @@ public:
     io.KeyAlt = io.KeysDown[GLFW_KEY_LEFT_ALT] || io.KeysDown[GLFW_KEY_RIGHT_ALT];
     io.KeySuper = io.KeysDown[GLFW_KEY_LEFT_SUPER] || io.KeysDown[GLFW_KEY_RIGHT_SUPER];
     if(io.WantCaptureKeyboard)
+    {
+      // probably put stuff in here to handle unsetting movement inputs
       return;
+    }
     // FIN IMGUI STUFF
     
     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
@@ -216,36 +184,13 @@ public:
       mycam.pos = vec3(0, 0, 2);
       mycam.pitch = mycam.yaw = 0;
     }
-    if (key == GLFW_KEY_P && action == GLFW_PRESS)
-    {
-      foo = (foo + 1) % NUM_SIDES;
-      cout << "Showing side: ";
-      switch(foo)
-      {
-        case TOP:
-          cout << "Top";
-          break;
-        case BOTTOM:
-          cout << "Bottom";
-          break;
-        case LEFT:
-          cout << "Left";
-          break;
-        case RIGHT:
-          cout << "Right";
-          break;
-        case FRONT:
-          cout << "Front";
-          break;
-        case BACK:
-          cout << "Back";
-          break;
-      }
-      cout << endl;
-    }
     if (key == GLFW_KEY_C && action == GLFW_PRESS)
     {
       cubemode = !cubemode;
+    }
+    if (key == GLFW_KEY_U && action == GLFW_PRESS)
+    {
+      freezeRender = !freezeRender;
     }
 
 		if (key == GLFW_KEY_R && action == GLFW_PRESS)
@@ -289,6 +234,8 @@ public:
     if (button == GLFW_MOUSE_BUTTON_RIGHT && !io.WantCaptureMouse)
     {
       aiming = (action == GLFW_PRESS);
+      // this doesn't work for some reason
+      // it SHOULD hide the cursor while you're right clicking so you can freely pan, but, wugh
       glfwSetInputMode(windowManager->getHandle(), GLFW_CURSOR, aiming ? GLFW_CURSOR_HIDDEN : GLFW_CURSOR_NORMAL);
       glfwGetCursorPos(windowManager->getHandle(), &prevX, &prevY);
     }
@@ -323,30 +270,24 @@ public:
 
     shaderLoc = resourceDirectory;
     
-    // Set background color.
-    glClearColor(0.f, 1.f, 0.f, 1.0f);
 
-    // Enable z-buffer test.
-    glEnable(GL_DEPTH_TEST);
+    //transparency
+    glEnable(GL_BLEND);
 
     //culling:
     glFrontFace(GL_CCW);
 
-    //transparency
-    glEnable(GL_BLEND);
     //next function defines how to mix the background color with the transparent pixel in the foreground. 
     //This is the standard:
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     
     ImGui::CreateContext();
     ImGui_ImplGlfwGL3_Init(windowManager->getHandle(), true);
-    
-    ccsphere.xres = BOXTEXSIZE;
-    ccsphere.yres = BOXTEXSIZE;
-    ccsphere.skyFBO.fill(0);
-    ccsphere.skyTex = 0;
-    createCCSphere();
 
+    marcher = make_shared<MarchingManager>(BOXTEXSIZE, BOXTEXSIZE);
+
+    mrender.init();
+    
     mycam.pos = vec3(0, 0, 2);
     mycam.pitch = mycam.yaw = 0;
 
@@ -381,41 +322,13 @@ public:
 
   void initGeom(const std::string& resourceDirectory)
   {
+    glGenTransformFeedbacks(1, &feedbackBuf);
+    glGenQueries(1, &queryObject);
 
-    glGenVertexArrays(1, &VertexArrayUnitPlane);
-    glBindVertexArray(VertexArrayUnitPlane);
-
-    //generate vertex buffer to hand off to OGL
-    glGenBuffers(1, &VertexBufferUnitPlane);
-    //set the current state to focus on our vertex buffer
-    glBindBuffer(GL_ARRAY_BUFFER, VertexBufferUnitPlane);
-
-    GLfloat *ver = new GLfloat[6 * 3];
-    // front
-    int verc = 0;
-
-    ver[verc++] = 0.0, ver[verc++] = 0.0, ver[verc++] = 0.0;
-    ver[verc++] = 1.0, ver[verc++] = 1.0, ver[verc++] = 0.0;
-    ver[verc++] = 0.0, ver[verc++] = 1.0, ver[verc++] = 0.0;
-    ver[verc++] = 0.0, ver[verc++] = 0.0, ver[verc++] = 0.0;
-    ver[verc++] = 1.0, ver[verc++] = 0.0, ver[verc++] = 0.0;
-    ver[verc++] = 1.0, ver[verc++] = 1.0, ver[verc++] = 0.0;
-
-    //actually memcopy the data - only do this once
-    glBufferData(GL_ARRAY_BUFFER, 6 * 3 * sizeof(float), ver, GL_STATIC_DRAW);
-    //we need to set up the vertex array
-    glEnableVertexAttribArray(0);
-    //key function to get up how many elements to pull out at a time (3)
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (void*)0);
-
-    skybox_mesh.loadMesh(resourceDirectory + "/skybox2.obj");
-    skybox_mesh.resize();
-    skybox_mesh.init();
-  }
-  
-  // this is pricey, it redraws the image to the faces of the skybox
-  void redrawSkybox()
-  {
+    // prep the common mesh
+    MarchingLayer::skybox_mesh.loadMesh(resourceDirectory + "/skybox2.obj");
+    MarchingLayer::skybox_mesh.resize();
+    MarchingLayer::skybox_mesh.init();
   }
   
   // maybe call it an "onionbox" later or smthn
@@ -424,65 +337,20 @@ public:
     int width, height;
     // for each direction, bind a frame buffer, set the view matrix appropriately, and render
     mycam.process();
-  
-    for(int i = 0; i < NUM_SIDES; i++)
-    {
-      glBindFramebuffer(GL_FRAMEBUFFER, ccsphere.skyFBO[i]);
-      renderBulb(mycam.pos, dirEnumToDirection(i), dirEnumToUp(i), vec2(ccsphere.xres, ccsphere.yres));
-    }
     
-    ccSphereshader->bind();
+    if(!freezeRender)
+    {
+      marcher->redraw(mycam, mandelshader, mrender);
+    }
     // This binds the main screen
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    // Set background color - max green, to stand out, in order to expose errors
+    glClearColor(0.f, 1.f, 0.f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
     glfwGetFramebufferSize(windowManager->getHandle(), &width, &height);
     glViewport(0, 0, width, height);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D_ARRAY, ccsphere.skyTex);
-    glUniform1i(ccSphereshader->getUniform("sphereMap"), 0);
     
-    vec3 camdir = mycam.getForward();
-    
-    mat4 camAtOrigin = glm::inverse(lookAt(vec3(0, 0, 0), camdir, mycam.getUp())) * translate(mat4(), skybox_translate);
-    glUniformMatrix4fv(ccSphereshader->getUniform("MVP"), 1, GL_TRUE, value_ptr(camAtOrigin));
-    skybox_mesh.draw(ccSphereshader);
-    ccSphereshader->unbind();
-  }
-  
-  // bind your framebuffer before calling this function
-  void renderBulb(vec3 origin, vec3 direction, vec3 up, vec2 bufferRes)
-  {
-    glViewport(0, 0, bufferRes.x, bufferRes.y);
-    
-    mat4 view = lookAt(origin, origin + direction, up);
-    vec3 camorigin = mycam.pos * mycam.zoomLevel;
-    
-    // Clear framebuffer.
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); 
-    mandelshader->bind();
-    glUniform2f(mandelshader->getUniform("resolution"), static_cast<float>(bufferRes.x), static_cast<float>(bufferRes.y));
-    glUniform1f(mandelshader->getUniform("intersectStepSize"), intersect_step_size*mycam.zoomLevel);
-    glUniform1i(mandelshader->getUniform("intersectStepCount"), intersect_step_count);
-    glUniform3fv(mandelshader->getUniform("clearColor"), 1, (float*)&clear_color);
-    glUniform3fv(mandelshader->getUniform("yColor"), 1, (float*)&y_color);
-    glUniform3fv(mandelshader->getUniform("zColor"), 1, (float*)&z_color);
-    glUniform3fv(mandelshader->getUniform("wColor"), 1, (float*)&w_color);
-    glUniform1f(mandelshader->getUniform("zoomLevel"), mycam.zoomLevel);
-    glUniform1f(mandelshader->getUniform("startOffset"), start_offset);
-    glUniform1f(mandelshader->getUniform("fle"), fle);
-    glUniform1i(mandelshader->getUniform("modulo"), modulo);
-    glUniform1f(mandelshader->getUniform("escapeFactor"), escape_factor);
-    glUniform1f(mandelshader->getUniform("mapResultFactor"), map_result_factor);
-    glUniform1i(mandelshader->getUniform("mapIterCount"), map_iter_count);
-    glUniform1f(mandelshader->getUniform("time"), glfwGetTime());
-    glUniform3fv(mandelshader->getUniform("camOrigin"), 1, value_ptr(origin));
-    
-    glUniformMatrix4fv(mandelshader->getUniform("view"), 1, GL_TRUE, value_ptr(view));
-    
-    glBindVertexArray(VertexArrayUnitPlane);
-    glDrawArrays(GL_TRIANGLES, 0, 6);
-
-    mandelshader->unbind(); 
+    marcher->draw(mycam, ccSphereshader);
   }
 
   void render()
@@ -497,91 +365,31 @@ public:
     {
       mycam.process();
       glBindFramebuffer(GL_FRAMEBUFFER, 0);
-      renderBulb(mycam.pos*mycam.zoomLevel, mycam.getForward(), vec3(0, 1, 0), vec2(width, height));
+      mrender.render(mandelshader, mycam.pos*mycam.zoomLevel, mycam.getForward(), vec3(0, 1, 0), mycam.zoomLevel, vec2(width, height));
     }
   }
   
-  vec4 dirEnumToDirection(int dir)
+  void update()
   {
-    switch(dir)
-    {
-      default:
-        cerr << "Invalid direction enum: " << dir << endl;
-      case FRONT:
-        return vec4(0, 0, +1, 0);
-        break;
-      case BACK:
-        return vec4(0, 0, -1, 0);
-        break;
-      case LEFT:
-        return vec4(-1, 0, 0, 0);
-        break;
-      case RIGHT:
-        return vec4(+1, 0, 0, 0);
-        break;
-      case TOP:
-        return vec4(0, +1, 0, 0);
-        break;
-      case BOTTOM:
-        return vec4(0, -1, 0, 0);
-        break;
-    }
+    // use "zoom level" to determine level of detail
+    marcher->setDepth(static_cast<int>(-log(mycam.zoomLevel)));
   }
   
-  // ugh this is a gross hack and I need to think of a more algorithmic/sane thing to do here
-  vec4 dirEnumToUp(int dir)
-  {
-    switch(dir)
-    {
-      default:
-        cerr << "Invalid direction enum: " << dir << endl;
-      case FRONT:
-      case BACK:
-      case LEFT:
-      case RIGHT:
-        return vec4(0, +1, 0, 0);
-        break;
-      case TOP:
-        return vec4(0, 0, +1, 0);
-        break;
-      case BOTTOM:
-        return vec4(0, 0, -1, 0);
-        break;
-    }
-  }
-  
-  void createCCSphere()
+  void createCCStencil(int width, int height)
   {
     // init fbos and other gl structures
     // load in and map the ccsphere model
-    glGenTextures(1, &ccsphere.skyTex);
-    glGenFramebuffers(NUM_SIDES, ccsphere.skyFBO.data());
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D_ARRAY, ccsphere.skyTex);
-      
-    glTextureStorage3D(ccsphere.skyTex, 1, GL_RGBA8, ccsphere.xres, ccsphere.yres, NUM_SIDES);
+    glGenTextures(1, &commonSkyStencil);
+    
+    // Stencil attachment
+    glBindTexture(GL_TEXTURE_2D_ARRAY, commonSkyStencil);
+    
+    glTextureStorage3D(commonSkyStencil, 1, GL_STENCIL_INDEX8, width, height, NUM_SIDES);
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAX_LEVEL, 0);
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    for(int i = 0; i < NUM_SIDES; i++)
-    {
-      glBindFramebuffer(GL_FRAMEBUFFER, ccsphere.skyFBO[i]);
-      glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, ccsphere.skyTex, 0, i);
-    }
-  }
-
-  void CreateFBOandTex(unsigned int width, unsigned int height, GLuint* fbo, GLuint* colorattch) {
-    glGenFramebuffers(1, fbo);
-    glBindFramebuffer(GL_FRAMEBUFFER, *fbo);
-
-    glGenTextures(1, colorattch);
-    glBindTexture(GL_TEXTURE_2D, *colorattch);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, *colorattch, 0);
   }
   
   void doImgui()
@@ -592,51 +400,56 @@ public:
       hud_countdown = false;
     }
 
-    ImGui::Begin("Mandelbulb");
-    ImGui::Text("Mandelbulb controls");                           // Display some text (you can use a format string too)
-    ImGui::ColorEdit3("clear color", (float*)&clear_color); // Edit 3 floats representing a color
-    ImGui::ColorEdit3("y color", (float*)&y_color); // Edit 3 floats representing a color
-    ImGui::ColorEdit3("z color", (float*)&z_color); // Edit 3 floats representing a color
-    ImGui::ColorEdit3("w color", (float*)&w_color); // Edit 3 floats representing a color
-    
-    ImGui::SliderFloat("mapping start offset", &start_offset, 0.002f, 30.f, "%.3f", 1.2f);
-    ImGui::SliderFloat("zoom level", &mycam.zoomLevel, 0.002f, 30.f, "%.3f", 1.2f);
-    ImGui::SliderFloat("intersect step size", &intersect_step_size, 1e-20, 1e-1f, "%.3e", 1.5f);
-    ImGui::SliderInt("intersect step count", &intersect_step_count, 1, 1024);
-    ImGui::SliderInt("Mandelbulb modulo", &modulo, 2, 32);
-    ImGui::SliderFloat("Mandelbulb escape factor", &escape_factor, .01, 10., "%.3f", 4.2f);
-    ImGui::SliderFloat("Mandelbulb map result factor", &map_result_factor, .01, 10., "%.3f", 4.2f);
-    ImGui::SliderInt("Mandelbulb map iter count", &map_iter_count, 1, 32);
-    ImGui::SliderFloat("fle", &fle, 0.1f, 15.f);
-    
-    ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-    ImGui::End();
-    
-    vec3 viewdir = mycam.getForward();
-    vec3 xforward = mycam.xMovement();
-    vec3 zforward = mycam.zMovement();
-    
-    ImGui::Begin("Camera");
-    ImGui::LabelText("View Vector:", "X: %0.2f, Y: %0.2f, Z: %0.2f", viewdir.x, viewdir.y, viewdir.z);
-    ImGui::LabelText("View Position:", "X: %0.2f, Y: %0.2f, Z: %0.2f", mycam.pos.x, mycam.pos.y, mycam.pos.z);
-    ImGui::LabelText("X Forward:", "X: %0.2f, Y: %0.2f, Z: %0.2f", xforward.x, xforward.y, xforward.z);
-    ImGui::LabelText("Z Forward:", "X: %0.2f, Y: %0.2f, Z: %0.2f", zforward.x, zforward.y, zforward.z);
-    ImGui::LabelText("Theta:", "%0.2f pi", mycam.yaw / pi<float>());
-    ImGui::LabelText("Phi:", "%0.2f", mycam.pitch);
-    
-    
-    if(ImGui::TreeNode("View Matrix"))
+    if(ImGui::Begin("Mandelbulb"))
     {
-      ImGuiTextBuffer matrix_text;
-      mat4 view = mycam.getView();
-      for(int i = 0; i < 4; i++)
-      {
-        matrix_text.appendf("%5.2f %5.2f %5.2f %5.2f\n", view[0][i], view[1][i], view[2][i], view[3][i]);
-      }
-      ImGui::Text(matrix_text.c_str());
-      ImGui::TreePop();
+      ImGui::Text("Mandelbulb controls");                           // Display some text (you can use a format string too)
+      ImGui::ColorEdit3("clear color", (float*)&mrender.data.clear_color); // Edit 3 floats representing a color
+      ImGui::ColorEdit3("y color", (float*)&mrender.data.y_color); // Edit 3 floats representing a color
+      ImGui::ColorEdit3("z color", (float*)&mrender.data.z_color); // Edit 3 floats representing a color
+      ImGui::ColorEdit3("w color", (float*)&mrender.data.w_color); // Edit 3 floats representing a color
+      
+      ImGui::SliderFloat("mapping start offset", &mrender.data.start_offset, 0.002f, 30.f, "%.3f", 1.2f);
+      ImGui::SliderFloat("zoom level", &mycam.zoomLevel, 1e-20f, 1.f, "%.3f", 10.f);
+      ImGui::SliderFloat("intersect threshold", &mrender.data.intersect_threshold, 1e-20, 1e-1f, "%.3e", 1.5f);
+      ImGui::SliderInt("intersect step count", &mrender.data.intersect_step_count, 1, 1024);
+      ImGui::SliderInt("Mandelbulb modulo", &mrender.data.modulo, 2, 32);
+      ImGui::SliderFloat("Mandelbulb escape factor", &mrender.data.escape_factor, .01, 10., "%.3f", 4.2f);
+      ImGui::SliderFloat("Mandelbulb map result factor", &mrender.data.map_result_factor, .01, 10., "%.3f", 4.2f);
+      ImGui::SliderInt("Mandelbulb map iter count", &mrender.data.map_iter_count, 1, 32);
+      ImGui::SliderFloat("fle", &mrender.data.fle, 0.1f, 15.f);
+      
+      ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+      ImGui::End();
     }
-    ImGui::End();
+    
+    if(ImGui::Begin("Camera"))
+    {
+      vec3 viewdir = mycam.getForward();
+      vec3 xforward = mycam.xMovement();
+      vec3 zforward = mycam.zMovement();
+      ImGui::LabelText("View Vector:", "X: %0.2f, Y: %0.2f, Z: %0.2f", viewdir.x, viewdir.y, viewdir.z);
+      ImGui::LabelText("View Position:", "X: %0.2f, Y: %0.2f, Z: %0.2f", mycam.pos.x, mycam.pos.y, mycam.pos.z);
+      ImGui::LabelText("X Forward:", "X: %0.2f, Y: %0.2f, Z: %0.2f", xforward.x, xforward.y, xforward.z);
+      ImGui::LabelText("Z Forward:", "X: %0.2f, Y: %0.2f, Z: %0.2f", zforward.x, zforward.y, zforward.z);
+      ImGui::LabelText("Theta:", "%0.2f pi", mycam.yaw / pi<float>());
+      ImGui::LabelText("Phi:", "%0.2f", mycam.pitch);
+      
+      ImGui::SliderFloat("Movement Factor", &mycam.velocityFactor, 1e-2f, 1e4f, "%.3f", 10.f);
+      
+      
+      if(ImGui::TreeNode("View Matrix"))
+      {
+        ImGuiTextBuffer matrix_text;
+        mat4 view = mycam.getView();
+        for(int i = 0; i < 4; i++)
+        {
+          matrix_text.appendf("%5.2f %5.2f %5.2f %5.2f\n", view[0][i], view[1][i], view[2][i], view[3][i]);
+        }
+        ImGui::Text(matrix_text.c_str());
+        ImGui::TreePop();
+      }
+      ImGui::End();
+    }
     
     if(ImGui::Begin("Position HUD", &showHUD, ImGuiWindowFlags_NoTitleBar|ImGuiWindowFlags_NoResize|ImGuiWindowFlags_AlwaysAutoResize|ImGuiWindowFlags_NoMove|ImGuiWindowFlags_NoSavedSettings|ImGuiWindowFlags_NoFocusOnAppearing|ImGuiWindowFlags_NoNav))
     {
@@ -652,6 +465,16 @@ public:
       ImGui::End();
     }
 
+    if(ImGui::Begin("Layers Info"))
+    {
+      ImGui::LabelText("Layers:", "%d", marcher->getDepth());
+      for(unsigned int i = 0; i < marcher->layer_display_list.size(); i++)
+      {
+        ImGui::Checkbox("", (bool*)&marcher->layer_display_list[i]); ImGui::SameLine();
+      }
+      ImGui::NewLine();
+      ImGui::End();
+    }
 
     ImGui::ShowDemoWindow();
   }
@@ -723,13 +546,13 @@ int main(int argc, char **argv)
     // Render scene.
     ImGui_ImplGlfwGL3_NewFrame();
     application->render();
+    application->update();
     application->doImgui();
     ImGui::Render();
     ImGui_ImplGlfwGL3_RenderDrawData(ImGui::GetDrawData());
     
     // Swap front and back buffers.
     glfwSwapBuffers(windowManager->getHandle());
-    //showFPS(dt);
     // Poll for and process events.
     glfwPollEvents();
   }

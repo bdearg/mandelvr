@@ -14,21 +14,17 @@ uniform vec3 zColor;
 uniform vec3 wColor;
 
 uniform vec2 resolution;
-uniform float time;
 
 uniform float zoomLevel;
 uniform float startOffset;
-
-// bulb transformation
-uniform mat4 bulbXfrm;
-uniform float bulbTheta;
-uniform float bulbPhi;
 
 uniform vec3 camOrigin;
 // camera transformation
 uniform mat4 view;
 
-uniform float intersectStepSize;
+uniform int intersectStartStep;
+
+uniform float intersectThreshold;
 uniform int intersectStepCount;
 
 uniform int modulo;
@@ -39,65 +35,23 @@ uniform float escapeFactor;
 uniform float mapResultFactor;
 uniform int mapIterCount;
 
+uniform bool exhaust;
+
 out vec4 color;
-
-/*
-
-float map( in vec3 p, out vec4 resColor )
-{
-    vec3 w = p;
-    float m = dot(w,w);
-
-    vec4 trap = vec4(abs(w),m);
-  float dz = 1.0;
-    
-    
-  for( int i=0; i<4; i++ )
-    {
-#if 0
-        float m2 = m*m;
-        float m4 = m2*m2;
-        dz = 8.0*sqrt(m4*m2*m)*dz + 1.0;
-
-        float x = w.x; float x2 = x*x; float x4 = x2*x2;
-        float y = w.y; float y2 = y*y; float y4 = y2*y2;
-        float z = w.z; float z2 = z*z; float z4 = z2*z2;
-
-        float k3 = x2 + z2;
-        float k2 = inversesqrt( k3*k3*k3*k3*k3*k3*k3 );
-        float k1 = x4 + y4 + z4 - 6.0*y2*z2 - 6.0*x2*y2 + 2.0*z2*x2;
-        float k4 = x2 - y2 + z2;
-
-        w.x = p.x +  64.0*x*y*z*(x2-z2)*k4*(x4-6.0*x2*z2+z4)*k1*k2;
-        w.y = p.y + -16.0*y2*k3*k4*k4 + k1*k1;
-        w.z = p.z +  -8.0*y*k4*(x4*x4 - 28.0*x4*x2*z2 + 70.0*x4*z4 - 28.0*x2*z2*z4 + z4*z4)*k1*k2;
-#else
-        dz = 8.0*pow(sqrt(m),7.0)*dz + 1.0;
-    //dz = 8.0*pow(m,3.5)*dz + 1.0;
-        
-        float r = length(w);
-        float b = 8.0*acos( w.y/r);
-        float a = 8.0*atan( w.x, w.z );
-        w = p + pow(r,8.0) * vec3( sin(b)*sin(a), cos(b), sin(b)*cos(a) );
-#endif        
-        
-        trap = min( trap, vec4(abs(w),m) );
-
-        m = dot(w,w);
-    if( m > 256.0 )
-            break;
-    }
-
-    resColor = vec4(m,trap.yzw);
-
-    return 0.25*log(m)*sqrt(m)/dz;
-}*/
 
 float rand(vec2 co){
   return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
 }
 
-// this appears to be our "fractal rule"?
+// a culling bounds detector for a sphere
+// Arguments:
+// `sph.xyz`: Center of the sphere
+// `sph.w`:   Radius of the sphere
+// `ro`:      Origin of the ray
+// `rd`:      Forward axis of the ray
+// Return:
+// `out.x`:   Near intercept along the `rd` axis. -1. on a miss
+// `out.y`:   Far intercept along the `rd` axis. -1. on a miss
 vec2 isphere( in vec4 sph, in vec3 ro, in vec3 rd )
 {
   vec3 oc = ro - sph.xyz;
@@ -113,6 +67,12 @@ vec2 isphere( in vec4 sph, in vec3 ro, in vec3 rd )
   return -b + vec2(-h,h);
 }
 
+// The "map" function for our fractal
+// Arguments:
+// `p`: The point to sample
+// Return:
+// `resColor`:  the color to render at this sample
+// `out`:       the "magnitude" at this point
 float map( in vec3 p, out vec4 resColor )
 {
 
@@ -158,19 +118,23 @@ float intersect( in vec3 ro, in vec3 rd, out vec4 rescol, in float px )
 
   // raymarch fractal distance field
   vec4 trap;
+  int i;
 
   float t = dis.x;
-  for( int i=0; i<intersectStepCount; i++  )
-  { 
+  for( i=0; i<intersectStepCount; i++ )
+  {
     vec3 pos = ro + rd*t;
-    float th = intersectStepSize*px*t;
+    float th = intersectThreshold*px*t;
     float h = map( pos, trap );
     if( t>dis.y || h<th ) break;
     t += h;
   }
-
-
-  if( t<dis.y )
+  
+  if ( i >= intersectStepCount && !exhaust ) // Leave some for the next step
+  {
+    discard;
+  }
+  else if( t<dis.y ) // Either a hit, or enough distance traveled
   {
     rescol = trap;
     res = t;
@@ -224,10 +188,8 @@ vec3 render( in vec2 p, in mat4 cam )
   sp.y /= resolution.y;
   float px = 2.0/(resolution.y*fle);
 
-  //sp *= zoomLevel;
-
   // extract translation component of view matrix
-  vec3  ro = camOrigin;//zoomLevel*vec3( cam[0].w, cam[1].w, cam[2].w );
+  vec3  ro = camOrigin;
   // extract direction from view matrix and given pixel to be marched
   vec3  rd = normalize( (cam*vec4(sp,fle,0.0)).xyz );
 
@@ -236,8 +198,7 @@ vec3 render( in vec2 p, in mat4 cam )
   float t = intersect( ro, rd, tra, px );
 
   vec3 col;
-
-  // color sky
+  
   if( t<0.0 )
   {
 //    col  = vec3(0.8,.95,1.0)*(0.6+0.4*rd.y);
@@ -292,40 +253,6 @@ vec3 render( in vec2 p, in mat4 cam )
 
 void main()
 {
-  float alttime = time*10.;
-
-  // camera
-  // camera distance
-  float di = 1.4+0.1*cos(.29*alttime);
-  // rotation???
-  // this vector has 3 components that oscillate at different frequencies
-  // so no guarantees of magnitude
-  // it's responsible for our view of the bulb rotating
-  // I think it marches "across" a composed sphere-ish thing?
-  // there's probably a math word for this since it's not *actually* an ellipse, sphere, w/e
-  // since due to the lack of frequency sync there's going to be more erratic behavior
-  vec3  ro = di * vec3( cos(.33*alttime), 0.8*sin(.37*alttime), sin(.31*alttime) );
-  //vec3  ro = di * vec3(.71, .71, 0);
-  // uhhhh, a "bias" factor for the "ro" vector above?
-  // not actually needed
-  //vec3  ta = vec3(0.0,0.1,0.0);
-  vec3  ta = vec3(0.1*cos(alttime),0.1*sin(alttime),0.0);
-  // some thing to make a rotating vector in the xy plane
-  // for construction of an orthonormal camera basis?
-  float cr = 0.5*cos(0.1*alttime);
-
-  // camera matrix
-  
-  // we're composing 3 vec3s to make a vector space
-  vec3 cw = normalize(-ro);
-  // cp's only use: constructing "cu"
-  vec3 cp = vec3(sin(cr), cos(cr),0.0);
-  vec3 cu = normalize(cross(cw,cp));
-  vec3 cv = normalize(cross(cu,cw));
-  /*mat4 cam = mat4(cu, ro.x,
-      cv, ro.y,
-      cw, ro.z, 
-      0.0, 0.0, 0.0, 1.0);*/
   mat4 cam = view;
   // render
 #if AA<2
