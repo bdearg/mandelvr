@@ -86,6 +86,8 @@ public:
   void addShaderAttributes()
   {
     mandelshader->addAttribute("vertPos");
+    mandelshader->addUniform("inputDepthBuffer");
+    mandelshader->addUniform("outputDepthBuffer");
     mandelshader->addUniform("resolution");
     mandelshader->addUniform("view");
     mandelshader->addUniform("camOrigin");
@@ -468,11 +470,88 @@ public:
     if(ImGui::Begin("Layers Info"))
     {
       ImGui::LabelText("Layers:", "%d", marcher->getDepth());
+      static vector<string> depths;
+      static const char *chosen = NULL;
+      static int chosen_idx = -1;
+      bool change = false;
+      static GLuint depth_tex;
+      static bool firstTime = true;
+      
+      if(firstTime)
+      {
+        depths.reserve(200); // oops
+        glGenTextures(1, &depth_tex);
+        glBindTexture(GL_TEXTURE_2D, depth_tex);
+        glTexStorage2D(GL_TEXTURE_2D, 1, GL_R32F, BOXTEXSIZE, BOXTEXSIZE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        firstTime = false;
+      }
+      
       for(unsigned int i = 0; i < marcher->layer_display_list.size(); i++)
       {
         ImGui::Checkbox("", (bool*)&marcher->layer_display_list[i]); ImGui::SameLine();
+        if(i >= depths.size())
+        {
+          depths.push_back(std::to_string(i));
+        }
       }
       ImGui::NewLine();
+      if(ImGui::BeginCombo("Layer Depth Textures", chosen))
+      {
+        for(unsigned int i = 0; i < depths.size(); i++)
+        {
+          bool isSelected = (chosen == depths[i].c_str());
+          if(ImGui::Selectable(depths[i].c_str(), isSelected))
+          {
+            if(!isSelected)
+              change = true;
+            chosen_idx = i;
+            chosen = depths[i].c_str();
+          }
+        }
+        ImGui::EndCombo();
+      }
+      const char * items[] = { "0", "1", "2", "3", "4", "5" };
+      static const char *dir_chosen = NULL;
+      static int chosen_dir_num = 0;
+      if(chosen_idx != -1 && static_cast<int>(marcher->layer_display_list.size()) > chosen_idx)
+      {
+        ImGui::BeginGroup();
+          if(ImGui::BeginCombo("Directions", dir_chosen))
+          {
+            for(unsigned int i = 0; i < IM_ARRAYSIZE(items); i++)
+            {
+              bool isSelected = (dir_chosen == items[i]);
+              if(ImGui::Selectable(items[i], isSelected))
+              {
+                if(!isSelected)
+                  change = true;
+                dir_chosen = items[i];
+                chosen_dir_num = i;
+              }
+            }
+            ImGui::EndCombo();
+          }
+          GLuint depthBufArray = marcher->getDepthBufArray(chosen_idx);
+          if(change)
+          {
+            glCopyImageSubData(
+              depthBufArray, GL_TEXTURE_2D_ARRAY, 0,
+              0, 0, chosen_dir_num,
+              depth_tex, GL_TEXTURE_2D, 0,
+              0, 0, 0,
+              BOXTEXSIZE, BOXTEXSIZE, 1);
+          }
+          ImDrawList* draw_list = ImGui::GetWindowDrawList();
+          
+          draw_list->AddImage((ImTextureID)depth_tex, ImVec2(0, 0), ImVec2(200, 200));
+          
+        ImGui::EndGroup();
+      }
       ImGui::End();
     }
 

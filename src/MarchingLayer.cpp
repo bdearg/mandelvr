@@ -18,6 +18,7 @@ MarchingLayer::MarchingLayer(int mapLevel, GLuint stencil, int w, int h)
 MarchingLayer::~MarchingLayer()
 {  
   glDeleteTextures(1, &texArray);
+  glDeleteTextures(1, &marchDepthBufArray);
   glDeleteFramebuffers(NUM_SIDES, framebufs.data());
 }
 
@@ -39,6 +40,8 @@ void MarchingLayer::initTextures()
   
   glActiveTexture(GL_TEXTURE1);
   glBindTexture(GL_TEXTURE_2D_ARRAY, marchDepthBufArray);
+  
+  glTextureStorage3D(marchDepthBufArray, 1, GL_R32F, width, height, NUM_SIDES);
   glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
   glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
   glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAX_LEVEL, 0);
@@ -51,6 +54,11 @@ void MarchingLayer::initTextures()
     glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, texArray, 0, i);
     glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, stencilID, 0, i);
   }
+}
+
+GLint MarchingLayer::getMarchDepthBuf()
+{
+  return marchDepthBufArray;
 }
 
 // display the cached texture
@@ -71,11 +79,11 @@ void MarchingLayer::draw(camera &cam, std::shared_ptr<Program> &ccSphereshader)
 }
 
 // update the cached texture
-void MarchingLayer::redraw(camera &cam, std::shared_ptr<Program> &mandelShader, MandelRenderer &mandel, bool isRoot)
+void MarchingLayer::redraw(camera &cam, std::shared_ptr<Program> &mandelShader, MandelRenderer &mandel, GLuint inputDepthBuf, bool isRoot)
 {
   for(int i = 0; i < NUM_SIDES; i++)
   {
     glBindFramebuffer(GL_FRAMEBUFFER, framebufs[i]);
-    mandel.render(mandelShader, cam.pos, dirEnumToDirection(i), dirEnumToUp(i), cam.zoomLevel, glm::vec2(width, height), *this, isRoot);
+    mandel.render(mandelShader, cam.pos, dirEnumToDirection(i), dirEnumToUp(i), cam.zoomLevel, glm::vec2(width, height), *this, inputDepthBuf, i, isRoot);
   }
 }

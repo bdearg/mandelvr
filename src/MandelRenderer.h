@@ -36,6 +36,10 @@ struct MandelRenderer
     // when set, the renderer will "guess" what's at the end
     // of a raymarching
     GLboolean exhaust = 0;
+    
+    GLint depthbufferInput = 0;
+    GLint depthbufferOutput = 0;
+    int direction = 0;
   } data;
   
   static GLuint VertexArrayUnitPlane;
@@ -46,7 +50,7 @@ struct MandelRenderer
   
   void render(std::shared_ptr<Program> prog, glm::vec3 pos, glm::vec3 forward, glm::vec3 up, float zoomLevel, glm::vec2 size);
   
-  void render(std::shared_ptr<Program> prog, glm::vec3 pos, glm::vec3 forward, glm::vec3 up, float zoomLevel, glm::vec2 size, MarchingLayer &marcher, bool isRoot);
+  void render(std::shared_ptr<Program> prog, glm::vec3 pos, glm::vec3 forward, glm::vec3 up, float zoomLevel, glm::vec2 size, MarchingLayer &marcher, GLuint inputDepthBuf, int direction, bool isRoot);
   
 private:
   void render_internal(std::shared_ptr<Program> prog, glm::vec3 pos, glm::vec3 forward, glm::vec3 up, glm::vec2 size, RenderData &dat);

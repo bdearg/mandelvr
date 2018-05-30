@@ -18,6 +18,9 @@ uniform vec2 resolution;
 uniform float zoomLevel;
 uniform float startOffset;
 
+layout(r32f) uniform restrict readonly image2D inputDepthBuffer;
+layout(r32f) uniform restrict writeonly image2D outputDepthBuffer;
+
 uniform vec3 camOrigin;
 // camera transformation
 uniform mat4 view;
@@ -105,7 +108,7 @@ float map( in vec3 p, out vec4 resColor )
   return mapResultFactor*0.25*log(m)*sqrt(m)/dz;
 }
 
-float intersect( in vec3 ro, in vec3 rd, out vec4 rescol, in float px )
+float intersect( in vec3 ro, in vec3 rd, out vec4 rescol, in float px, in ivec2 coord )
 {
   float res = -1.0;
 
@@ -120,7 +123,7 @@ float intersect( in vec3 ro, in vec3 rd, out vec4 rescol, in float px )
   vec4 trap;
   int i;
 
-  float t = dis.x;
+  float t = dis.x + imageLoad(inputDepthBuffer, coord).r;
   for( i=0; i<intersectStepCount; i++ )
   {
     vec3 pos = ro + rd*t;
@@ -132,6 +135,7 @@ float intersect( in vec3 ro, in vec3 rd, out vec4 rescol, in float px )
   
   if ( i >= intersectStepCount && !exhaust ) // Leave some for the next step
   {
+    imageStore(outputDepthBuffer, coord , vec4(t, 0., 0., 0.));
     discard;
   }
   else if( t<dis.y ) // Either a hit, or enough distance traveled
@@ -195,7 +199,9 @@ vec3 render( in vec2 p, in mat4 cam )
 
   // intersect fractal
   vec4 tra;
-  float t = intersect( ro, rd, tra, px );
+  // rounded to integer
+  ivec2 ip = ivec2(p);
+  float t = intersect( ro, rd, tra, px, ip );
 
   vec3 col;
   

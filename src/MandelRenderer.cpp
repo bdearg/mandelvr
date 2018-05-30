@@ -43,15 +43,19 @@ void MandelRenderer::render(std::shared_ptr<Program> prog, glm::vec3 pos, glm::v
   // this is probably real inefficient oops
   RenderData d2 = data;
   d2.zoom_level = zoomLevel;
+  d2.exhaust = true;
   render_internal(prog, pos, forward, up, size, d2);
 }
   
-void MandelRenderer::render(std::shared_ptr<Program> prog, glm::vec3 pos, glm::vec3 forward, glm::vec3 up, float zoomLevel, glm::vec2 size, MarchingLayer &marcher, bool isRoot)
+void MandelRenderer::render(std::shared_ptr<Program> prog, glm::vec3 pos, glm::vec3 forward, glm::vec3 up, float zoomLevel, glm::vec2 size, MarchingLayer &marcher, GLuint inputDepthBuf, int direction, bool isRoot)
 {
   RenderData d2 = data;
   d2.zoom_level = zoomLevel;
   d2.map_iter_count = marcher.mappinglevel;
   d2.exhaust = isRoot;
+  d2.depthbufferInput = inputDepthBuf;
+  d2.depthbufferOutput = marcher.getMarchDepthBuf();
+  d2.direction = direction;
   render_internal(prog, pos, forward, up, size, d2);
 }
 
@@ -65,6 +69,11 @@ void MandelRenderer::render_internal(std::shared_ptr<Program> prog, glm::vec3 po
   glClear(GL_COLOR_BUFFER_BIT);
   
   prog->bind();
+  
+  glBindImageTexture(prog->getUniform("inputDepthBuffer"), dat.depthbufferInput, 0, GL_TRUE, dat.direction, GL_READ_ONLY, GL_R32F);
+  
+  glBindImageTexture(prog->getUniform("outputDepthBuffer"), dat.depthbufferOutput, 0, GL_TRUE, dat.direction, GL_WRITE_ONLY, GL_R32F);
+  
   glUniform2f(prog->getUniform("resolution"), static_cast<float>(size.x), static_cast<float>(size.y));
   glUniform1f(prog->getUniform("intersectThreshold"), dat.intersect_threshold);
   glUniform1i(prog->getUniform("intersectStepCount"), dat.intersect_step_count);

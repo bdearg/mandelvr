@@ -19,6 +19,11 @@ class MarchingLayer {
   GLuint stencilID, texArray, marchDepthBufArray;
   std::array<GLuint, NUM_SIDES> framebufs;
   
+  // Variables keeping track of where this snapshot is, for determining
+  // if an update is needed
+  glm::vec3 capturePos;
+  float captureScale;
+  
   // internal function used during construction
   void initTextures();
 public:
@@ -28,8 +33,10 @@ public:
   MarchingLayer(int maplevel, GLuint stencil, int w, int h);
   ~MarchingLayer();
   
+  GLint getMarchDepthBuf();
+  
   void draw(camera &cam, std::shared_ptr<Program> &ccSphereshader);
-  void redraw(camera &cam, std::shared_ptr<Program> &mandelShader, MandelRenderer &mandel, bool isRoot=false);
+  void redraw(camera &cam, std::shared_ptr<Program> &mandelShader, MandelRenderer &mandel, GLuint inputDepthBuf, bool isRoot);
   
   static Shape skybox_mesh;
 };
