@@ -123,6 +123,7 @@ float intersect( in vec3 ro, in vec3 rd, out vec4 rescol, in float px, in ivec2 
   vec4 trap;
   int i;
 
+  // Something goes wrong here if the skybox edge clips the bulb
   float t = dis.x + imageLoad(inputDepthBuffer, coord).r;
   for( i=0; i<intersectStepCount; i++ )
   {
@@ -135,7 +136,7 @@ float intersect( in vec3 ro, in vec3 rd, out vec4 rescol, in float px, in ivec2 
   
   if ( i >= intersectStepCount && !exhaust ) // Leave some for the next step
   {
-    imageStore(outputDepthBuffer, coord , vec4(t, 0., 0., 0.));
+    imageStore(outputDepthBuffer, coord , vec4(t-dis.x, 0., 0., 0.));
     discard;
   }
   else if( t<dis.y ) // Either a hit, or enough distance traveled

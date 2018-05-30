@@ -28,20 +28,18 @@ void MarchingLayer::initTextures()
   glGenTextures(1, &marchDepthBufArray);
   glGenFramebuffers(NUM_SIDES, framebufs.data());
   
-  glActiveTexture(GL_TEXTURE0);
   glBindTexture(GL_TEXTURE_2D_ARRAY, texArray);
       
-  glTextureStorage3D(texArray, 1, GL_RGBA8, width, height, NUM_SIDES);
+  glTexStorage3D(GL_TEXTURE_2D_ARRAY, 1, GL_RGBA8, width, height, NUM_SIDES);
   glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
   glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
   glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAX_LEVEL, 0);
   glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
   glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
   
-  glActiveTexture(GL_TEXTURE1);
   glBindTexture(GL_TEXTURE_2D_ARRAY, marchDepthBufArray);
   
-  glTextureStorage3D(marchDepthBufArray, 1, GL_R32F, width, height, NUM_SIDES);
+  glTexStorage3D(GL_TEXTURE_2D_ARRAY, 1, GL_R32F, width, height, NUM_SIDES);
   glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
   glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
   glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAX_LEVEL, 0);

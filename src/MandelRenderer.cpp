@@ -69,10 +69,12 @@ void MandelRenderer::render_internal(std::shared_ptr<Program> prog, glm::vec3 po
   glClear(GL_COLOR_BUFFER_BIT);
   
   prog->bind();
-  
-  glBindImageTexture(prog->getUniform("inputDepthBuffer"), dat.depthbufferInput, 0, GL_TRUE, dat.direction, GL_READ_ONLY, GL_R32F);
-  
-  glBindImageTexture(prog->getUniform("outputDepthBuffer"), dat.depthbufferOutput, 0, GL_TRUE, dat.direction, GL_WRITE_ONLY, GL_R32F);
+
+  glBindImageTexture(0, dat.depthbufferInput, 0, GL_TRUE, dat.direction, GL_READ_ONLY, GL_R32F);
+  glUniform1i(prog->getUniform("inputDepthBuffer"), 0);
+
+  glBindImageTexture(1, dat.depthbufferOutput, 0, GL_TRUE, dat.direction, GL_WRITE_ONLY, GL_R32F);
+  glUniform1i(prog->getUniform("outputDepthBuffer"), 1);
   
   glUniform2f(prog->getUniform("resolution"), static_cast<float>(size.x), static_cast<float>(size.y));
   glUniform1f(prog->getUniform("intersectThreshold"), dat.intersect_threshold);

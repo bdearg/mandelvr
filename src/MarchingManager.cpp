@@ -31,7 +31,7 @@ void MarchingManager::createTextures()
   // Stencil attachment
   glBindTexture(GL_TEXTURE_2D_ARRAY, stencilArray);
   
-  glTextureStorage3D(stencilArray, 1, GL_STENCIL_INDEX8, width, height, NUM_SIDES);
+  glTexStorage3D(GL_TEXTURE_2D_ARRAY, 1, GL_STENCIL_INDEX8, width, height, NUM_SIDES);
   glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
   glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
   glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAX_LEVEL, 0);
@@ -40,7 +40,7 @@ void MarchingManager::createTextures()
   
   glBindTexture(GL_TEXTURE_2D_ARRAY, dummyDepthBuf);
   
-  glTextureStorage3D(dummyDepthBuf, 1, GL_R32F, width, height, NUM_SIDES);
+  glTexStorage3D(GL_TEXTURE_2D_ARRAY, 1, GL_R32F, width, height, NUM_SIDES);
   glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
   glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
   glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAX_LEVEL, 0);
@@ -122,7 +122,7 @@ void MarchingManager::redraw(camera &cam, std::shared_ptr<Program> &mandelShader
   {
     i->redraw(cam, mandelShader, mandel, dBuf, false);
     dBuf = i-> getMarchDepthBuf();
-    glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT); // Is this necessary?
+    //glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT); // Is this necessary?
   }
   i->redraw(cam, mandelShader, mandel, dBuf, true);
   glDisable(GL_STENCIL_TEST);

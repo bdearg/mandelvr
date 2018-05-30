@@ -4,13 +4,12 @@
 
 #include <iostream>
 
-
 void error_callback(int error, const char *description)
 {
 	std::cerr << description << std::endl;
 }
 
-void glDebugOutput(GLenum source, GLenum type, GLuint id, GLenum severity, 
+void APIENTRY glDebugOutput(GLenum source, GLenum type, GLuint id, GLenum severity, 
                             GLsizei length, const GLchar *message, const void *userParam)
 {
 // ignore non-significant error/warning codes
@@ -86,8 +85,8 @@ bool WindowManager::init(int const width, int const height)
 	//request the highest possible version of OGL - important for mac
 	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 	
 	// This has performance cost, but makes things easier to audit
 	glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
@@ -105,14 +104,18 @@ bool WindowManager::init(int const width, int const height)
 	glfwMakeContextCurrent(windowHandle);
 
 	// Initialize GLAD
-	if (!gladLoadGL())
+	if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
 	{
 		std::cerr << "Failed to initialize GLAD" << std::endl;
 		return false;
 	}
 
+	GLint num_images;
+	glGetIntegerv(GL_MAX_IMAGE_UNITS, &num_images);
+
 	std::cout << "OpenGL version: " << glGetString(GL_VERSION) << std::endl;
 	std::cout << "GLSL version: " << glGetString(GL_SHADING_LANGUAGE_VERSION) << std::endl;
+	std::cout << "Max Image Units: " << std::to_string(num_images) << std::endl;
 
 	// Set vsync
 //	glfwSwapInterval(1);

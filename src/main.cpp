@@ -347,7 +347,7 @@ public:
     // This binds the main screen
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     // Set background color - max green, to stand out, in order to expose errors
-    glClearColor(0.f, 1.f, 0.f, 1.0f);
+    glClearColor(0.f, 0.f, 0.f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
     glfwGetFramebufferSize(windowManager->getHandle(), &width, &height);
     glViewport(0, 0, width, height);
@@ -374,7 +374,7 @@ public:
   void update()
   {
     // use "zoom level" to determine level of detail
-    marcher->setDepth(static_cast<int>(-log(mycam.zoomLevel)));
+    marcher->setDepth(static_cast<int>(4-(log(mycam.zoomLevel))));
   }
   
   void createCCStencil(int width, int height)
@@ -386,7 +386,7 @@ public:
     // Stencil attachment
     glBindTexture(GL_TEXTURE_2D_ARRAY, commonSkyStencil);
     
-    glTextureStorage3D(commonSkyStencil, 1, GL_STENCIL_INDEX8, width, height, NUM_SIDES);
+    glTexStorage3D(GL_TEXTURE_2D_ARRAY, 1, GL_STENCIL_INDEX8, width, height, NUM_SIDES);
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAX_LEVEL, 0);
