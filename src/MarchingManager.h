@@ -26,6 +26,7 @@ public:
   
   void draw(camera &cam, std::shared_ptr<Program> &ccSphereshader);
   void redraw(camera &cam, std::shared_ptr<Program> &mandelShader, MandelRenderer &mandel);
+  void redraw_if_needed(camera &cam, std::shared_ptr<Program> &mandelShader, MandelRenderer &mandel);
   
   MarchingManager(int width, int height);
   ~MarchingManager();

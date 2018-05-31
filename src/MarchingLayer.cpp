@@ -15,11 +15,26 @@ MarchingLayer::MarchingLayer(int mapLevel, GLuint stencil, int w, int h)
   initTextures();
 }
 
+MarchingLayer::MarchingLayer(MarchingLayer &&other)
+{
+  claimGLObjects(other);
+}
+
+MarchingLayer &MarchingLayer::operator=(MarchingLayer &&other)
+{
+  if(this != &other)
+  {
+    release();
+    
+    claimGLObjects(other);
+  }
+  
+  return *this;
+}
+
 MarchingLayer::~MarchingLayer()
-{  
-  glDeleteTextures(1, &texArray);
-  glDeleteTextures(1, &marchDepthBufArray);
-  glDeleteFramebuffers(NUM_SIDES, framebufs.data());
+{
+  release();
 }
 
 void MarchingLayer::initTextures()
@@ -52,6 +67,26 @@ void MarchingLayer::initTextures()
     glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, texArray, 0, i);
     glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, stencilID, 0, i);
   }
+}
+
+void MarchingLayer::release()
+{
+  glDeleteTextures(1, &texArray);
+  glDeleteTextures(1, &marchDepthBufArray);
+  glDeleteFramebuffers(NUM_SIDES, framebufs.data());
+}
+
+void MarchingLayer::claimGLObjects(MarchingLayer &other)
+{
+    stencilID = other.stencilID;
+    texArray = other.texArray;
+    marchDepthBufArray = other.marchDepthBufArray;
+    framebufs = other.framebufs;
+    
+    other.stencilID = 0;
+    other.texArray = 0;
+    other.marchDepthBufArray = 0;
+    other.framebufs.fill(0);
 }
 
 GLint MarchingLayer::getMarchDepthBuf()

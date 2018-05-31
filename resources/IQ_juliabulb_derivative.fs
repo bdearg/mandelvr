@@ -83,8 +83,8 @@ float intersect( in vec3 ro, in vec3 rd, out vec4 rescol, float fov, vec3 c )
 
         float surface = clamp( 0.0015*t*fovfactor, 0.0001, 0.1 );
 
-		float dt = map( p, c, trap );
-		if( t>dis.y || dt<surface ) break;
+		    float dt = map( p, c, trap );
+		    if( t>dis.y || dt<surface ) break;
 
         t += dt;
     }

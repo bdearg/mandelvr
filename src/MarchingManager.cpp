@@ -103,7 +103,7 @@ void MarchingManager::draw(camera &cam, std::shared_ptr<Program> &ccSphereshader
 void MarchingManager::redraw(camera &cam, std::shared_ptr<Program> &mandelShader, MandelRenderer &mandel)
 {
   // reset the stencil buffer, unset it when pixels are drawn
-  glEnable(GL_STENCIL_TEST);
+  //glEnable(GL_STENCIL_TEST);
   glClearStencil(0x01);
   // Clear away the stencil bits for all sides
   for(int n = 0; n < NUM_SIDES; n++)
@@ -121,9 +121,41 @@ void MarchingManager::redraw(camera &cam, std::shared_ptr<Program> &mandelShader
   for(unsigned int j = 0; j < layers.size() - 1; i++, j++)
   {
     i->redraw(cam, mandelShader, mandel, dBuf, false);
-    dBuf = i-> getMarchDepthBuf();
-    //glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT); // Is this necessary?
+    dBuf = i->getMarchDepthBuf();
+    glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT); // Is this necessary?
   }
   i->redraw(cam, mandelShader, mandel, dBuf, true);
-  glDisable(GL_STENCIL_TEST);
+  //glDisable(GL_STENCIL_TEST);
+}
+
+
+void MarchingManager::redraw_if_needed(camera &cam, std::shared_ptr<Program> &mandelShader, MandelRenderer &mandel)
+{
+  for(int n = 0; n < NUM_SIDES; n++)
+  {
+    glBindFramebuffer(GL_FRAMEBUFFER, flushbufs[n]);
+    glClear(GL_STENCIL_BUFFER_BIT);
+  }
+  glStencilFunc(GL_EQUAL, 0x01, 0x01);
+  glStencilOp(GL_KEEP, GL_KEEP, GL_ZERO);
+  
+  GLuint dBuf = dummyDepthBuf;
+  
+  bool redraw_needed = true;
+  
+  glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT); // Is this necessary?
+  auto i = layers.rbegin();
+  for(unsigned int j = 0; j < layers.size() - 1; i++, j++)
+  {
+    if(redraw_needed)
+    {
+      i->redraw(cam, mandelShader, mandel, dBuf, false);
+    }
+    dBuf = i->getMarchDepthBuf();
+    glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT); // Is this necessary?
+  }
+  if(redraw_needed)
+  {
+    i->redraw(cam, mandelShader, mandel, dBuf, true);
+  }
 }

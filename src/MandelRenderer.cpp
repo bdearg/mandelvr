@@ -38,12 +38,12 @@ void MandelRenderer::init()
   glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (void*)0);
 }
 
-void MandelRenderer::render(std::shared_ptr<Program> prog, glm::vec3 pos, glm::vec3 forward, glm::vec3 up, float zoomLevel, glm::vec2 size)
+void MandelRenderer::render(std::shared_ptr<Program> prog, glm::vec3 pos, glm::vec3 forward, glm::vec3 up, float zoomLevel, glm::vec2 size, bool exhaust)
 {
   // this is probably real inefficient oops
   RenderData d2 = data;
   d2.zoom_level = zoomLevel;
-  d2.exhaust = true;
+  d2.exhaust = exhaust;
   render_internal(prog, pos, forward, up, size, d2);
 }
   
@@ -64,7 +64,6 @@ void MandelRenderer::render_internal(std::shared_ptr<Program> prog, glm::vec3 po
   glViewport(0, 0, size.x, size.y);
   
   glm::mat4 view = glm::lookAt(pos, pos + forward, up);
-  glm::vec3 camorigin = pos * dat.zoom_level;
   glClearColor(0.f, 0.f, 0.f, 0.0f);
   glClear(GL_COLOR_BUFFER_BIT);
   
@@ -79,12 +78,16 @@ void MandelRenderer::render_internal(std::shared_ptr<Program> prog, glm::vec3 po
   glUniform2f(prog->getUniform("resolution"), static_cast<float>(size.x), static_cast<float>(size.y));
   glUniform1f(prog->getUniform("intersectThreshold"), dat.intersect_threshold);
   glUniform1i(prog->getUniform("intersectStepCount"), dat.intersect_step_count);
+  glUniform1f(prog->getUniform("intersectStepFactor"), dat.intersect_step_factor);
   glUniform3fv(prog->getUniform("clearColor"), 1, (float*)&dat.clear_color);
   glUniform3fv(prog->getUniform("yColor"), 1, (float*)&dat.y_color);
   glUniform3fv(prog->getUniform("zColor"), 1, (float*)&dat.z_color);
   glUniform3fv(prog->getUniform("wColor"), 1, (float*)&dat.w_color);
+  glUniform3fv(prog->getUniform("diffc1"), 1, (float*)&dat.diff1);
+  glUniform3fv(prog->getUniform("diffc2"), 1, (float*)&dat.diff2);
+  glUniform3fv(prog->getUniform("diffc3"), 1, (float*)&dat.diff3);
   glUniform1f(prog->getUniform("zoomLevel"), dat.zoom_level);
-  glUniform1f(prog->getUniform("startOffset"), dat.start_offset);
+  glUniform1f(prog->getUniform("startOffset"), dat.map_start_offset);
   glUniform1f(prog->getUniform("fle"), dat.fle);
   glUniform1i(prog->getUniform("modulo"), dat.modulo);
   glUniform1f(prog->getUniform("escapeFactor"), dat.escape_factor);

@@ -1,4 +1,5 @@
 #version 430 core
+precision highp float;
 
 #define AA 1
 //#define STEPLENGTH .25
@@ -6,12 +7,16 @@
 #define STEPCOUNT 128
 //#define STEPCOUNT 128
 
+// skeleton of shader by inigo quilez
 
 uniform vec3 clearColor;
 
 uniform vec3 yColor;
 uniform vec3 zColor;
 uniform vec3 wColor;
+uniform vec3 diffc1;
+uniform vec3 diffc2;
+uniform vec3 diffc3;
 
 uniform vec2 resolution;
 
@@ -29,6 +34,7 @@ uniform int intersectStartStep;
 
 uniform float intersectThreshold;
 uniform int intersectStepCount;
+uniform float intersectStepFactor;
 
 uniform int modulo;
 
@@ -45,6 +51,11 @@ out vec4 color;
 float rand(vec2 co){
   return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
 }
+
+struct expanded_float {
+  int exponent;
+  int mantissa;
+};
 
 // a culling bounds detector for a sphere
 // Arguments:
@@ -78,12 +89,11 @@ vec2 isphere( in vec4 sph, in vec3 ro, in vec3 rd )
 // `out`:       the "magnitude" at this point
 float map( in vec3 p, out vec4 resColor )
 {
-
+#if 0
   vec3 w = p;
   float m = dot(w,w);
 
   vec4 trap = vec4(abs(w),m);
-//  float dz = 1.0;
   float dz = startOffset;
 
   for( int i=0; i<mapIterCount; i++ )
@@ -96,7 +106,7 @@ float map( in vec3 p, out vec4 resColor )
     float a = modulo*atan( w.x, w.z );
     w = p + pow(r,modulo) * vec3( sin(b)*sin(a), cos(b), sin(b)*cos(a) );
 
-    trap = min( trap, vec4(abs(w),m) );
+    trap = min( trap, vec4(abs(w), m) );
 
     m = dot(w,w);
     if( m > modulo*modulo*escapeFactor )
@@ -106,6 +116,51 @@ float map( in vec3 p, out vec4 resColor )
   resColor = vec4(m,trap.yzw);
 
   return mapResultFactor*0.25*log(m)*sqrt(m)/dz;
+#else
+  // experimental high-precision map function
+  vec3 w = p;
+  float m = dot(w,w);
+
+  vec4 trap = vec4(abs(w),m);
+  float dz = startOffset;
+
+  for( int i=0; i<mapIterCount; i++ )
+  {
+    // +y: Real axis
+    // +z: i
+    // +x: j
+    // j**2 = -1
+    // i**2 = -1
+    
+    // this expansion of the above for modulus = 8
+    // provided by inigo quilez
+    float m2 = m*m;
+    float m4 = m2*m2;
+		dz = 8.0*sqrt(m4*m2*m)*dz + 1.0;
+
+    float x = w.x; float x2 = x*x; float x4 = x2*x2;
+    float y = w.y; float y2 = y*y; float y4 = y2*y2;
+    float z = w.z; float z2 = z*z; float z4 = z2*z2;
+
+    float k3 = x2 + z2;
+    float k2 = inversesqrt( k3*k3*k3*k3*k3*k3*k3 );
+    float k1 = x4 + y4 + z4 - 6.0*y2*z2 - 6.0*x2*y2 + 2.0*z2*x2;
+    float k4 = x2 - y2 + z2;
+
+    w.x = p.x +  64.0*x*y*z*(x2-z2)*k4*(x4-6.0*x2*z2+z4)*k1*k2;
+    w.y = p.y + -16.0*y2*k3*k4*k4 + k1*k1;
+    w.z = p.z +  -8.0*y*k4*(x4*x4 - 28.0*x4*x2*z2 + 70.0*x4*z4 - 28.0*x2*z2*z4 + z4*z4)*k1*k2;
+    trap = min( trap, vec4(abs(w), m) );
+
+    m = dot(w,w);
+    if( m > 64*escapeFactor )
+      break;
+  }
+
+  resColor = vec4(m,trap.yzw);
+
+  return mapResultFactor*0.25*log(float(m))*sqrt(m)/dz;
+#endif
 }
 
 float intersect( in vec3 ro, in vec3 rd, out vec4 rescol, in float px, in ivec2 coord )
@@ -128,15 +183,18 @@ float intersect( in vec3 ro, in vec3 rd, out vec4 rescol, in float px, in ivec2 
   for( i=0; i<intersectStepCount; i++ )
   {
     vec3 pos = ro + rd*t;
-    float th = intersectThreshold*px*t;
+    float th = intersectThreshold*px*t*zoomLevel;
     float h = map( pos, trap );
     if( t>dis.y || h<th ) break;
-    t += h;
+    t += h*intersectStepFactor;
   }
   
+  // this also trips if a ray goes parallel to an edge, causing
+  // odd borders
+  // hrmmph
   if ( i >= intersectStepCount && !exhaust ) // Leave some for the next step
   {
-    imageStore(outputDepthBuffer, coord , vec4(t-dis.x, 0., 0., 0.));
+    //imageStore(outputDepthBuffer, coord , vec4(abs(t-dis.x), 0., 0., 0.));
     discard;
   }
   else if( t<dis.y ) // Either a hit, or enough distance traveled
@@ -167,7 +225,7 @@ vec3 calcNormal( in vec3 pos, in float t, in float px )
 {
 //  return vec3(1.0, 0.0, 0.0);
   vec4 tmp;
-  vec2 eps = vec2( 0.25*px, 0.0 );
+  vec2 eps = vec2( zoomLevel*0.25*px, 0.0 );
   return normalize( vec3(
         map(pos+eps.xyy,tmp) - map(pos-eps.xyy,tmp),
         map(pos+eps.yxy,tmp) - map(pos-eps.yxy,tmp),
@@ -188,7 +246,7 @@ vec3 render( in vec2 p, in mat4 cam )
   // (0, 0) -> resolution.xy
   // to
   // (-1, -1) -> (1, 1)
-  vec2  sp = (-resolution.xy + 2.0*p);
+  vec2  sp = (-resolution.xy + 2.0*p)*zoomLevel;
   sp.x /= resolution.x;
   sp.y /= resolution.y;
   float px = 2.0/(resolution.y*fle);
@@ -233,7 +291,7 @@ vec3 render( in vec2 p, in mat4 cam )
     float fac = clamp(1.0+dot(rd,nor),0.0,1.0);
 
     // sun
-    float sha1 = 1.0;//softshadow( pos+0.001*nor, light1, 32.0 );
+    float sha1 = softshadow( pos+0.001*nor, light1, 32.0 );
     //float sha1 = 1.0; //softshadow( pos+0.001*nor, light1, 32.0 );
     float dif1 = clamp( dot( light1, nor ), 0.0, 1.0 )*sha1;
     float spe1 = pow( clamp(dot(nor,hal),0.0,1.0), 32.0 )*dif1*(0.04+0.96*pow(clamp(1.0-dot(hal,light1),0.0,1.0),5.0));
@@ -243,9 +301,9 @@ vec3 render( in vec2 p, in mat4 cam )
     float dif3 = (0.7+0.3*nor.y)*(0.2+0.8*occ);
 
     vec3 lin = vec3(0.0); 
-    lin += 7.0*vec3(1.50,1.10,0.70)*dif1;
-    lin += 4.0*vec3(0.25,0.20,0.15)*dif2;
-    lin += 1.5*vec3(0.10,0.20,0.30)*dif3;
+    lin += 7.0*diffc1*dif1;
+    lin += 4.0*diffc2*dif2;
+    lin += 1.5*diffc3*dif3;
     lin += 2.5*vec3(0.35,0.30,0.25)*(0.05+0.95*occ); // ambient
     lin += 4.0*fac*occ;                          // fake SSS
     col *= lin;

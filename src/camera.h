@@ -27,7 +27,7 @@ public:
 	
 	float velocityFactor = 1.0;
 	
-	const float scaling_rate = 0.98;
+	const float scaling_rate = 0.9;
 	int w, a, s, d, q, e;
 	camera()
 	{
@@ -48,8 +48,8 @@ public:
 	
 	void rotate(double dyaw, double dpitch)
 	{
-	  pitch = glm::clamp(pitch - dpitch, -glm::pi<double>()/2. + 1e-3, glm::pi<double>()/2. - 1e-3);
-	  yaw = glm::mod(yaw - dyaw,2*glm::pi<double>());
+	  pitch = glm::clamp(pitch - dpitch*zoomLevel, -glm::pi<double>()/2. + 1e-3, glm::pi<double>()/2. - 1e-3);
+	  yaw = glm::mod(yaw + dyaw*zoomLevel,2*glm::pi<double>());
 	}
 	
 	void translate(glm::vec3 offset)
@@ -62,7 +62,7 @@ public:
 	  return glm::normalize(glm::vec3(
 	    cos(pitch)*sin(yaw),
 	    sin(pitch),
-	    cos(pitch)*cos(yaw)
+	    -cos(pitch)*cos(yaw)
 	  ));
 	}
 	
@@ -79,7 +79,7 @@ public:
 	
 	glm::mat4 getView()
 	{
-		return glm::lookAt(pos*zoomLevel, (pos*zoomLevel) + getForward(), getUp());
+		return glm::lookAt(pos, (pos) + getForward(), getUp());
   }
   
   glm::vec3 xMovement()
@@ -92,8 +92,12 @@ public:
     return getForward();
   }
 	
-	glm::mat4 process()
+	glm::mat4 process(float dt)
 	{
+	  // tune movement to 1/60 of a second
+	  // dt is in seconds
+	  float time_scale = dt/(1./60.);
+	  
 	  // zoom-based camera
 		float zVel = 0;
 		float xVel = 0;

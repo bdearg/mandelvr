@@ -20,18 +20,23 @@ struct MandelRenderer
     ImVec4 z_color = ImVec4(0.02,0.10,0.30,1.);
     ImVec4 w_color = ImVec4(0.30,0.10,0.02,1.);
     
+    ImVec4 diff1 = ImVec4(1.50,1.10,0.70,1.);
+    ImVec4 diff2 = ImVec4(0.25,0.20,0.15,1.);
+    ImVec4 diff3 = ImVec4(0.10,0.20,0.30,1.);
+    
     GLfloat intersect_threshold = 0.0025;
-    GLint intersect_step_count = 32;
+    GLint intersect_step_count = 128;
+    GLfloat intersect_step_factor = 1.;
     
     GLfloat zoom_level = 1.0;
-    GLfloat start_offset = 1.0;
+    GLfloat map_start_offset = 1.0;
     
     GLfloat fle = 1.;
     
     GLint modulo = 8;
     GLfloat escape_factor = 1.;
     GLfloat map_result_factor = 1.;
-    GLint map_iter_count = 1;
+    GLint map_iter_count = 4;
     
     // when set, the renderer will "guess" what's at the end
     // of a raymarching
@@ -48,7 +53,7 @@ struct MandelRenderer
   // prepares internal rendering structures
   static void init();
   
-  void render(std::shared_ptr<Program> prog, glm::vec3 pos, glm::vec3 forward, glm::vec3 up, float zoomLevel, glm::vec2 size);
+  void render(std::shared_ptr<Program> prog, glm::vec3 pos, glm::vec3 forward, glm::vec3 up, float zoomLevel, glm::vec2 size, bool exhaust);
   
   void render(std::shared_ptr<Program> prog, glm::vec3 pos, glm::vec3 forward, glm::vec3 up, float zoomLevel, glm::vec2 size, MarchingLayer &marcher, GLuint inputDepthBuf, int direction, bool isRoot);
   

@@ -26,12 +26,20 @@ class MarchingLayer {
   
   // internal function used during construction
   void initTextures();
+  void release();
+  
+  void claimGLObjects(MarchingLayer &other);
 public:
   int mappinglevel;
   int width, height;
 
   MarchingLayer(int maplevel, GLuint stencil, int w, int h);
+  MarchingLayer(MarchingLayer&& other);
+  MarchingLayer &operator=(MarchingLayer &&other);
   ~MarchingLayer();
+  
+  MarchingLayer(const MarchingLayer &) = delete;
+  MarchingLayer &operator=(const MarchingLayer &other) = delete;
   
   GLint getMarchDepthBuf();
   

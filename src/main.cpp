@@ -73,15 +73,18 @@ public:
   
   bool showHUD = false;
   bool hud_countdown = false;
+  bool noImgui = false;
   chrono::steady_clock::time_point showHUDTime;
   
   vec3 skybox_translate = vec3(0, 0, 1.);
-  bool cubemode = true;
+  bool cubemode = false;
   bool freezeRender = false;
   
   string shaderLoc;
   
   GLuint commonSkyStencil;
+  
+  std::chrono::steady_clock::time_point last_update;
   
   void addShaderAttributes()
   {
@@ -95,8 +98,12 @@ public:
     mandelshader->addUniform("yColor");
     mandelshader->addUniform("zColor");
     mandelshader->addUniform("wColor");
+    mandelshader->addUniform("diffc1");
+    mandelshader->addUniform("diffc2");
+    mandelshader->addUniform("diffc3");
     mandelshader->addUniform("intersectThreshold");
     mandelshader->addUniform("intersectStepCount");
+    mandelshader->addUniform("intersectStepFactor");
     mandelshader->addUniform("zoomLevel");
     mandelshader->addUniform("modulo");
     mandelshader->addUniform("fle");
@@ -183,8 +190,9 @@ public:
     }
     if (key == GLFW_KEY_O && action == GLFW_PRESS)
     {
-      mycam.pos = vec3(0, 0, 2);
+      mycam.pos = vec3(0, 0, -2);
       mycam.pitch = mycam.yaw = 0;
+      mycam.zoomLevel = 1.f;
     }
     if (key == GLFW_KEY_C && action == GLFW_PRESS)
     {
@@ -193,6 +201,10 @@ public:
     if (key == GLFW_KEY_U && action == GLFW_PRESS)
     {
       freezeRender = !freezeRender;
+    }
+    if (key == GLFW_KEY_H && action == GLFW_PRESS)
+    {
+      noImgui = true;
     }
 
 		if (key == GLFW_KEY_R && action == GLFW_PRESS)
@@ -238,7 +250,7 @@ public:
       aiming = (action == GLFW_PRESS);
       // this doesn't work for some reason
       // it SHOULD hide the cursor while you're right clicking so you can freely pan, but, wugh
-      glfwSetInputMode(windowManager->getHandle(), GLFW_CURSOR, aiming ? GLFW_CURSOR_HIDDEN : GLFW_CURSOR_NORMAL);
+      glfwSetInputMode(windowManager->getHandle(), GLFW_CURSOR, aiming ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
       glfwGetCursorPos(windowManager->getHandle(), &prevX, &prevY);
     }
   }
@@ -272,10 +284,12 @@ public:
 
     shaderLoc = resourceDirectory;
     
-
     //transparency
     glEnable(GL_BLEND);
 
+    // not using stencil
+    glDisable(GL_STENCIL_TEST);
+      
     //culling:
     glFrontFace(GL_CCW);
 
@@ -290,7 +304,7 @@ public:
 
     mrender.init();
     
-    mycam.pos = vec3(0, 0, 2);
+    mycam.pos = vec3(0, 0, -2);
     mycam.pitch = mycam.yaw = 0;
 
     mandelshader = make_shared<Program>();
@@ -338,7 +352,6 @@ public:
   {
     int width, height;
     // for each direction, bind a frame buffer, set the view matrix appropriately, and render
-    mycam.process();
     
     if(!freezeRender)
     {
@@ -359,22 +372,27 @@ public:
   {
     int width, height;
     glfwGetFramebufferSize(windowManager->getHandle(), &width, &height);
+    auto this_update = std::chrono::steady_clock::now();
+    auto update_delay = this_update - last_update;
+    mycam.process(std::chrono::duration_cast<std::chrono::milliseconds>(update_delay).count()/1000.);
     if(cubemode)
     {
       renderSkybox();
     }
     else
     {
-      mycam.process();
       glBindFramebuffer(GL_FRAMEBUFFER, 0);
-      mrender.render(mandelshader, mycam.pos*mycam.zoomLevel, mycam.getForward(), vec3(0, 1, 0), mycam.zoomLevel, vec2(width, height));
+      glClearColor(0.f, 1.f, 0.f, 1.f);
+      glClear(GL_COLOR_BUFFER_BIT);
+      mrender.render(mandelshader, mycam.pos, mycam.getForward(), vec3(0, 1, 0), mycam.zoomLevel, vec2(width, height), true);
     }
   }
   
   void update()
   {
     // use "zoom level" to determine level of detail
-    marcher->setDepth(static_cast<int>(4-(log(mycam.zoomLevel))));
+    mrender.data.map_iter_count = static_cast<int>(4-(log(mycam.zoomLevel)));
+    //marcher->setDepth(static_cast<int>(4-(log(mycam.zoomLevel))));
   }
   
   void createCCStencil(int width, int height)
@@ -409,11 +427,15 @@ public:
       ImGui::ColorEdit3("y color", (float*)&mrender.data.y_color); // Edit 3 floats representing a color
       ImGui::ColorEdit3("z color", (float*)&mrender.data.z_color); // Edit 3 floats representing a color
       ImGui::ColorEdit3("w color", (float*)&mrender.data.w_color); // Edit 3 floats representing a color
+      ImGui::ColorEdit3("diffuse 1", (float*)&mrender.data.diff1);
+      ImGui::ColorEdit3("diffuse 2", (float*)&mrender.data.diff2);
+      ImGui::ColorEdit3("diffuse 3", (float*)&mrender.data.diff3);
       
-      ImGui::SliderFloat("mapping start offset", &mrender.data.start_offset, 0.002f, 30.f, "%.3f", 1.2f);
-      ImGui::SliderFloat("zoom level", &mycam.zoomLevel, 1e-20f, 1.f, "%.3f", 10.f);
+      ImGui::SliderFloat("mapping start offset", &mrender.data.map_start_offset, 0.002f, 30.f, "%.3f", 1.2f);
+      ImGui::SliderFloat("zoom level", &mycam.zoomLevel, 1e-20f, 1.f, "%.3f", 4.f);
       ImGui::SliderFloat("intersect threshold", &mrender.data.intersect_threshold, 1e-20, 1e-1f, "%.3e", 1.5f);
       ImGui::SliderInt("intersect step count", &mrender.data.intersect_step_count, 1, 1024);
+      ImGui::SliderFloat("intersect step factor", &mrender.data.intersect_step_factor, 1e-20, 1.f, "%.3e", 1.5f);
       ImGui::SliderInt("Mandelbulb modulo", &mrender.data.modulo, 2, 32);
       ImGui::SliderFloat("Mandelbulb escape factor", &mrender.data.escape_factor, .01, 10., "%.3f", 4.2f);
       ImGui::SliderFloat("Mandelbulb map result factor", &mrender.data.map_result_factor, .01, 10., "%.3f", 4.2f);
@@ -463,94 +485,6 @@ public:
       if(hud_countdown)
       {
         ImGui::Text("Vanish in %ld seconds", chrono::duration_cast<chrono::seconds>(showHUDTime - chrono::steady_clock::now()).count());
-      }
-      ImGui::End();
-    }
-
-    if(ImGui::Begin("Layers Info"))
-    {
-      ImGui::LabelText("Layers:", "%d", marcher->getDepth());
-      static vector<string> depths;
-      static const char *chosen = NULL;
-      static int chosen_idx = -1;
-      bool change = false;
-      static GLuint depth_tex;
-      static bool firstTime = true;
-      
-      if(firstTime)
-      {
-        depths.reserve(200); // oops
-        glGenTextures(1, &depth_tex);
-        glBindTexture(GL_TEXTURE_2D, depth_tex);
-        glTexStorage2D(GL_TEXTURE_2D, 1, GL_R32F, BOXTEXSIZE, BOXTEXSIZE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        firstTime = false;
-      }
-      
-      for(unsigned int i = 0; i < marcher->layer_display_list.size(); i++)
-      {
-        ImGui::Checkbox("", (bool*)&marcher->layer_display_list[i]); ImGui::SameLine();
-        if(i >= depths.size())
-        {
-          depths.push_back(std::to_string(i));
-        }
-      }
-      ImGui::NewLine();
-      if(ImGui::BeginCombo("Layer Depth Textures", chosen))
-      {
-        for(unsigned int i = 0; i < depths.size(); i++)
-        {
-          bool isSelected = (chosen == depths[i].c_str());
-          if(ImGui::Selectable(depths[i].c_str(), isSelected))
-          {
-            if(!isSelected)
-              change = true;
-            chosen_idx = i;
-            chosen = depths[i].c_str();
-          }
-        }
-        ImGui::EndCombo();
-      }
-      const char * items[] = { "0", "1", "2", "3", "4", "5" };
-      static const char *dir_chosen = NULL;
-      static int chosen_dir_num = 0;
-      if(chosen_idx != -1 && static_cast<int>(marcher->layer_display_list.size()) > chosen_idx)
-      {
-        ImGui::BeginGroup();
-          if(ImGui::BeginCombo("Directions", dir_chosen))
-          {
-            for(unsigned int i = 0; i < IM_ARRAYSIZE(items); i++)
-            {
-              bool isSelected = (dir_chosen == items[i]);
-              if(ImGui::Selectable(items[i], isSelected))
-              {
-                if(!isSelected)
-                  change = true;
-                dir_chosen = items[i];
-                chosen_dir_num = i;
-              }
-            }
-            ImGui::EndCombo();
-          }
-          GLuint depthBufArray = marcher->getDepthBufArray(chosen_idx);
-          if(change)
-          {
-            glCopyImageSubData(
-              depthBufArray, GL_TEXTURE_2D_ARRAY, 0,
-              0, 0, chosen_dir_num,
-              depth_tex, GL_TEXTURE_2D, 0,
-              0, 0, 0,
-              BOXTEXSIZE, BOXTEXSIZE, 1);
-          }
-          ImDrawList* draw_list = ImGui::GetWindowDrawList();
-          
-          draw_list->AddImage((ImTextureID)depth_tex, ImVec2(0, 0), ImVec2(200, 200));
-          
-        ImGui::EndGroup();
       }
       ImGui::End();
     }
