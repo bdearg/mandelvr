@@ -27,7 +27,7 @@ public:
 	
 	float velocityFactor = 1.0;
 	
-	const float scaling_rate = 0.9;
+	const float scaling_rate = 0.98;
 	int w, a, s, d, q, e;
 	camera()
 	{
@@ -48,8 +48,8 @@ public:
 	
 	void rotate(double dyaw, double dpitch)
 	{
-	  pitch = glm::clamp(pitch - dpitch*zoomLevel, -glm::pi<double>()/2. + 1e-3, glm::pi<double>()/2. - 1e-3);
-	  yaw = glm::mod(yaw + dyaw*zoomLevel,2*glm::pi<double>());
+	  pitch = glm::clamp(pitch - dpitch, -glm::pi<double>()/2. + 1e-3, glm::pi<double>()/2. - 1e-3);
+	  yaw = glm::mod(yaw + dyaw,2*glm::pi<double>());
 	}
 	
 	void translate(glm::vec3 offset)

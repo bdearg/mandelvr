@@ -40,7 +40,7 @@ using namespace glm;
 #define FPSBUFSIZE 15
 
 // VR defaults
-#if 0
+#if 1
 #define FRAMEWIDTH  2160
 #define FRAMEHEIGHT 1200
 #else
@@ -204,7 +204,7 @@ public:
     }
     if (key == GLFW_KEY_H && action == GLFW_PRESS)
     {
-      noImgui = true;
+      noImgui = !noImgui;
     }
 
 		if (key == GLFW_KEY_R && action == GLFW_PRESS)
@@ -420,6 +420,11 @@ public:
       hud_countdown = false;
     }
 
+	if (noImgui)
+	{
+		return;
+	}
+
     if(ImGui::Begin("Mandelbulb"))
     {
       ImGui::Text("Mandelbulb controls");                           // Display some text (you can use a format string too)
@@ -443,8 +448,8 @@ public:
       ImGui::SliderFloat("fle", &mrender.data.fle, 0.1f, 15.f);
       
       ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-      ImGui::End();
     }
+	ImGui::End();
     
     if(ImGui::Begin("Camera"))
     {
@@ -472,8 +477,8 @@ public:
         ImGui::Text(matrix_text.c_str());
         ImGui::TreePop();
       }
-      ImGui::End();
     }
+	ImGui::End();
     
     if(ImGui::Begin("Position HUD", &showHUD, ImGuiWindowFlags_NoTitleBar|ImGuiWindowFlags_NoResize|ImGuiWindowFlags_AlwaysAutoResize|ImGuiWindowFlags_NoMove|ImGuiWindowFlags_NoSavedSettings|ImGuiWindowFlags_NoFocusOnAppearing|ImGuiWindowFlags_NoNav))
     {
@@ -486,8 +491,8 @@ public:
       {
         ImGui::Text("Vanish in %ld seconds", chrono::duration_cast<chrono::seconds>(showHUDTime - chrono::steady_clock::now()).count());
       }
-      ImGui::End();
     }
+	ImGui::End();
 
     ImGui::ShowDemoWindow();
   }

@@ -1,7 +1,7 @@
 #version 430 core
 precision highp float;
 
-#define AA 1
+#define AA 2
 //#define STEPLENGTH .25
 #define STEPLENGTH .25
 #define STEPCOUNT 128
@@ -246,10 +246,9 @@ vec3 render( in vec2 p, in mat4 cam )
   // (0, 0) -> resolution.xy
   // to
   // (-1, -1) -> (1, 1)
-  vec2  sp = (-resolution.xy + 2.0*p)*zoomLevel;
-  sp.x /= resolution.x;
-  sp.y /= resolution.y;
-  float px = 2.0/(resolution.y*fle);
+  float smallestaxis = min(resolution.x, resolution.y);
+  vec2  sp = (-resolution.xy + 2.0*p)*zoomLevel / smallestaxis;
+  float px = 2.0/(smallestaxis*fle);
 
   // extract translation component of view matrix
   vec3  ro = camOrigin;
