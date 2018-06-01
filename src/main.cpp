@@ -107,12 +107,17 @@ public:
 		pixshader->addUniform("unitIPD");
 		pixshader->addUniform("viewoffset");
 		pixshader->addUniform("viewscale");
+		pixshader->addUniform("mappingLevel");
 		pixshader->addUniform("P");
 		pixshader->addUniform("headpose");
 		pixshader->addUniform("rotationoffset");
 		pixshader->addUniform("modulo");
 
 		pixshader->addUniform("iTest");
+		pixshader->addUniform("fTest");
+		pixshader->addUniform("maplevels_per_log");
+		pixshader->addUniform("map_distance_scale");
+		pixshader->addUniform("shadow_mapping_level");
 	}
 
 	void keyCallback(GLFWwindow *window, int key, int scancode, int action, int mods)
@@ -358,21 +363,17 @@ public:
 		uint32_t vr_width, vr_height;
 		pHMD->GetRecommendedRenderTargetSize(&vr_width, &vr_height);
 		glViewport(0, 0, vr_width, vr_height);
-
-		mat4 worldTransform = glm::mat4(1.f); // glm::rotate(90.f, vec3(0, 0, 1));
 		
 		mat4 hmdPose = vrviewer->getHeadsetPose();
 		mat4 rotationOffset = vrviewer->getRotationOffset();
-//		cout << glm::to_string(rotationOffset) << endl;
 		float viewerscale = static_cast<float>(vrviewer->getPlayerScale());
 		{ // Left eye
 			pixshader->bind();
 			glUniform1f(pixshader->getUniform("time"), glfwGetTime());
 			glUniform1f(pixshader->getUniform("unitIPD"), vrviewer->getFocusMult());
 			mat4 view = vrviewer->getEyeView(vr::Eye_Left);
-			mat4 viewrot = view*worldTransform;
 			mat4 P = vrviewer->getEyeProj(vr::Eye_Left);
-			glUniformMatrix4fv(pixshader->getUniform("view"), 1, GL_FALSE, value_ptr(viewrot));
+			glUniformMatrix4fv(pixshader->getUniform("view"), 1, GL_FALSE, value_ptr(view));
 			glUniformMatrix4fv(pixshader->getUniform("projection"), 1, GL_FALSE, value_ptr(P));
 			glUniformMatrix4fv(pixshader->getUniform("headpose"), 1, GL_FALSE, value_ptr(hmdPose));
 			glUniform3fv(pixshader->getUniform("viewoffset"), 1, value_ptr(vrviewer->getPositionOffset()));
@@ -392,10 +393,11 @@ public:
 			pixshader->bind();
 			glUniform1f(pixshader->getUniform("time"), glfwGetTime());
 			glUniform1f(pixshader->getUniform("unitIPD"), vrviewer->getFocusMult());
+			glUniform1f(pixshader->getUniform("viewscale"), viewerscale);
+			glUniform1i(pixshader->getUniform("mappingLevel"), static_cast<int>(4 - log(viewerscale)));
 			mat4 view = vrviewer->getEyeView(vr::Eye_Right);
-			mat4 viewrot = view*worldTransform;
 			mat4 P = vrviewer->getEyeProj(vr::Eye_Right);
-			glUniformMatrix4fv(pixshader->getUniform("view"), 1, GL_FALSE, value_ptr(viewrot));
+			glUniformMatrix4fv(pixshader->getUniform("view"), 1, GL_FALSE, value_ptr(view));
 			glUniformMatrix4fv(pixshader->getUniform("projection"), 1, GL_FALSE, value_ptr(P));
 			glUniformMatrix4fv(pixshader->getUniform("headpose"), 1, GL_FALSE, value_ptr(hmdPose));
 			glUniform3fv(pixshader->getUniform("viewoffset"), 1, value_ptr(vrviewer->getPositionOffset()));
@@ -437,21 +439,25 @@ public:
 	{
 		ImGui::Begin("Mandelbulb");
 		ImGui::Text("Mandelbulb controls");                           // Display some text (you can use a format string too)                           // Display some text (you can use a format string too)
-    ImGui::ColorEdit3("clear color", (float*)&mrender.data.clear_color); // Edit 3 floats representing a color
-    ImGui::ColorEdit3("y color", (float*)&mrender.data.y_color); // Edit 3 floats representing a color
-    ImGui::ColorEdit3("z color", (float*)&mrender.data.z_color); // Edit 3 floats representing a color
-    ImGui::ColorEdit3("w color", (float*)&mrender.data.w_color); // Edit 3 floats representing a color
-    ImGui::ColorEdit3("diffuse 1", (float*)&mrender.data.diff1);
-    ImGui::ColorEdit3("diffuse 2", (float*)&mrender.data.diff2);
-    ImGui::ColorEdit3("diffuse 3", (float*)&mrender.data.diff3);
+		ImGui::ColorEdit3("clear color", (float*)&mrender.data.clear_color); // Edit 3 floats representing a color
+		ImGui::ColorEdit3("y color", (float*)&mrender.data.y_color); // Edit 3 floats representing a color
+		ImGui::ColorEdit3("z color", (float*)&mrender.data.z_color); // Edit 3 floats representing a color
+		ImGui::ColorEdit3("w color", (float*)&mrender.data.w_color); // Edit 3 floats representing a color
+		ImGui::ColorEdit3("diffuse 1", (float*)&mrender.data.diff1);
+		ImGui::ColorEdit3("diffuse 2", (float*)&mrender.data.diff2);
+		ImGui::ColorEdit3("diffuse 3", (float*)&mrender.data.diff3);
     
-    ImGui::SliderInt("intersect step count", &mrender.data.intersect_step_count, 1, 1024);
-    ImGui::SliderFloat("intersect step factor", &mrender.data.intersect_step_factor, 1e-20, 1.f, "%.3e", 1.5f);
-    ImGui::SliderInt("Mandelbulb modulo", &mrender.data.modulo, 2, 32);
-    ImGui::SliderInt("Mandelbulb map iter count", &mrender.data.map_iter_count, 1, 32);
-	ImGui::SliderInt("Int test", &mrender.data.iTest, 1, 32);
-	  ImGui::SliderFloat3("Julia Point", (float*)&mrender.data.juliaPoint, -1., 1.);
-	  ImGui::SliderFloat("Julia Factor", &mrender.data.juliaFactor, 0.f, 1.f);
+		ImGui::SliderInt("intersect step count", &mrender.data.intersect_step_count, 1, 1024);
+		ImGui::SliderFloat("intersect step factor", &mrender.data.intersect_step_factor, 1e-20, 1.f, "%.3e", 1.5f);
+		ImGui::SliderInt("Mandelbulb modulo", &mrender.data.modulo, 2, 32);
+		ImGui::SliderInt("Mandelbulb map iter count", &mrender.data.map_iter_count, 1, 32);
+		ImGui::SliderInt("maplevels per log level", &mrender.data.maplevels_per_log, 1, 32);
+		ImGui::SliderFloat("Map Distance Scalar", &mrender.data.map_distance_scale, .125, 8, "%.3e", 2.f);
+		ImGui::SliderInt("Shadow Mapping Level", &mrender.data.shadow_mapping_level, 1, 32);
+		ImGui::SliderInt("Int test", &mrender.data.iTest, 1, 32);
+		ImGui::SliderFloat("Float test", &mrender.data.fTest, .125, 8, "%.3e", 2.f);
+		ImGui::SliderFloat3("Julia Point", (float*)&mrender.data.juliaPoint, -1., 1.);
+		ImGui::SliderFloat("Julia Factor", &mrender.data.juliaFactor, 0.f, 1.f);
 		ImGui::SliderFloat("Intersect Step Size", &intersectStepSize, 2.5e-12, 15., "%.3e", 10.f);
 
 
@@ -461,27 +467,135 @@ public:
 		ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
 		ImGui::End();
 
-		ImGui::Begin("Controls");
-		ImGui::Text("KEYBOARD");
-		ImGui::Text("R - reload shader");
-		ImGui::Text("O - Reset to origin");
-		ImGui::Text("Esc - Exit");
+		if (ImGui::Begin("Controls"))
+		{
+			ImGui::Text("KEYBOARD");
+			ImGui::Text("R - reload shader");
+			ImGui::Text("O - Reset to origin");
+			ImGui::Text("Esc - Exit");
 
-		ImGui::NewLine();
-		ImGui::NewLine();
-		ImGui::Text("OCULUS");
-		ImGui::NewLine();
-		ImGui::Text("L Hand");
-		ImGui::Text("Joystick - 'flat' movement");
-		ImGui::Text("A - Shrink");
-		ImGui::Text("B - Reduce inter-eye distance");
-		ImGui::Text("Squeeze trigger - Boost");
-		ImGui::NewLine();
-		ImGui::Text("R Hand");
-		ImGui::Text("Joystick - U/D movement + rotation");
-		ImGui::Text("X - Grow");
-		ImGui::Text("Y - Increase inter-eye distance");
-		ImGui::Text("Squeeze trigger - Boost");
+			ImGui::NewLine();
+			ImGui::NewLine();
+			ImGui::Text("JOYCON");
+			ImGui::NewLine();
+			ImGui::Text("Joystick L - 'flat' movement");
+			ImGui::Text("A - Shrink");
+			ImGui::Text("B - Grow");
+			ImGui::Text("Squeeze trigger - Boost");
+			ImGui::NewLine();
+			ImGui::Text("Joystick R - U/D movement + rotation");
+			ImGui::Text("X - Reduce inter-eye distance");
+			ImGui::Text("Y - Increase inter-eye distance");
+			ImGui::Text("Squeeze trigger - Boost");
+			/*
+			ImGui::Text("OCULUS");
+			ImGui::NewLine();
+			ImGui::Text("L Hand");
+			ImGui::Text("Joystick - 'flat' movement");
+			ImGui::Text("A - Shrink");
+			ImGui::Text("B - Reduce inter-eye distance");
+			ImGui::Text("Squeeze trigger - Boost");
+			ImGui::NewLine();
+			ImGui::Text("R Hand");
+			ImGui::Text("Joystick - U/D movement + rotation");
+			ImGui::Text("X - Grow");
+			ImGui::Text("Y - Increase inter-eye distance");
+			ImGui::Text("Squeeze trigger - Boost");
+			*/
+		}
+		ImGui::End();
+
+		if (ImGui::Begin("VR Matrices"))
+		{
+			glm::vec3 wpos = vrviewer->getPositionOffset();
+			ImGui::Text("World Position: %5.2f %5.2f %5.2f\n", wpos.x, wpos.y, wpos.z);
+			if (ImGui::TreeNode("Rotation Offset"))
+			{
+				mat4 vrView = vrviewer->getRotationOffset();
+				ImGuiTextBuffer hviewtext;
+				for (int i = 0; i < 4; i++)
+				{
+					hviewtext.appendf("%5.2f %5.2f %5.2f %5.2f\n", vrView[0][i], vrView[1][i], vrView[2][i], vrView[3][i]);
+				}
+				ImGui::Text(hviewtext.c_str());
+				ImGui::TreePop();
+			}
+			if (ImGui::TreeNode("Head View"))
+			{
+				mat4 vrView = vrviewer->getHeadView();
+				ImGuiTextBuffer hviewtext;
+				for (int i = 0; i < 4; i++)
+				{
+					hviewtext.appendf("%5.2f %5.2f %5.2f %5.2f\n", vrView[0][i], vrView[1][i], vrView[2][i], vrView[3][i]);
+				}
+				ImGui::Text(hviewtext.c_str());
+				ImGui::TreePop();
+			}
+
+			if (ImGui::TreeNode("Eye View Projection"))
+			{
+				ImGui::Text("Left:");
+				mat4 vrView = vrviewer->getEyeViewProj(vr::Eye_Left);
+				ImGuiTextBuffer hviewtext;
+				for (int i = 0; i < 4; i++)
+				{
+					hviewtext.appendf("%5.2f %5.2f %5.2f %5.2f\n", vrView[0][i], vrView[1][i], vrView[2][i], vrView[3][i]);
+				}
+				ImGui::Text(hviewtext.c_str());
+				ImGui::Text("Right:");
+				vrView = vrviewer->getEyeViewProj(vr::Eye_Right);
+				ImGuiTextBuffer hviewtext2;
+				for (int i = 0; i < 4; i++)
+				{
+					hviewtext2.appendf("%5.2f %5.2f %5.2f %5.2f\n", vrView[0][i], vrView[1][i], vrView[2][i], vrView[3][i]);
+				}
+				ImGui::Text(hviewtext2.c_str());
+				ImGui::TreePop();
+			}
+
+			if (ImGui::TreeNode("Eye Projection"))
+			{
+				ImGui::Text("Left:");
+				mat4 vrView = vrviewer->getEyeProj(vr::Eye_Left);
+				ImGuiTextBuffer hviewtext;
+				for (int i = 0; i < 4; i++)
+				{
+					hviewtext.appendf("%5.2f %5.2f %5.2f %5.2f\n", vrView[0][i], vrView[1][i], vrView[2][i], vrView[3][i]);
+				}
+				ImGui::Text(hviewtext.c_str());
+				ImGui::Text("Right:");
+				vrView = vrviewer->getEyeProj(vr::Eye_Right);
+				ImGuiTextBuffer hviewtext2;
+				for (int i = 0; i < 4; i++)
+				{
+					hviewtext2.appendf("%5.2f %5.2f %5.2f %5.2f\n", vrView[0][i], vrView[1][i], vrView[2][i], vrView[3][i]);
+				}
+				ImGui::Text(hviewtext2.c_str());
+				ImGui::TreePop();
+			}
+
+			if (ImGui::TreeNode("Eye View"))
+			{
+				ImGui::Text("Left:");
+				mat4 vrView = vrviewer->getEyeView(vr::Eye_Left);
+				ImGuiTextBuffer hviewtext;
+				for (int i = 0; i < 4; i++)
+				{
+					hviewtext.appendf("%5.2f %5.2f %5.2f %5.2f\n", vrView[0][i], vrView[1][i], vrView[2][i], vrView[3][i]);
+				}
+				ImGui::Text(hviewtext.c_str());
+				ImGui::Text("Right:");
+				vrView = vrviewer->getEyeView(vr::Eye_Right);
+				ImGuiTextBuffer hviewtext2;
+				for (int i = 0; i < 4; i++)
+				{
+					hviewtext2.appendf("%5.2f %5.2f %5.2f %5.2f\n", vrView[0][i], vrView[1][i], vrView[2][i], vrView[3][i]);
+				}
+				ImGui::Text(hviewtext2.c_str());
+				ImGui::TreePop();
+			}
+
+		}
 		ImGui::End();
 		
 		bool showHUD = true;

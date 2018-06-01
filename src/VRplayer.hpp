@@ -72,7 +72,8 @@ private:
 	int lhandJoystickAxis = -1, rhandJoystickAxis = -1, lhandSqueezeAxis = -1, rhandSqueezeAxis = -1;
 
 	vec3 worldPosition = vec3(0.0, 0.f, 2.f);
-	quat rotationOffset = glm::quat(glm::vec3(glm::radians(0.), glm::radians(180.), glm::radians(0.)));
+	vec3 lastVRPosePosition = vec3(0.f, 0.f, 0.f);
+	quat rotationOffset = glm::quat(glm::vec3(glm::radians(0.), glm::radians(0.), glm::radians(0.)));
 	long double scale = 1.0;
 	long double focusMult = 1.0;
 };

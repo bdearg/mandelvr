@@ -66,8 +66,12 @@ void MandelRenderer::render_internal(std::shared_ptr<Program> prog, glm::vec2 si
   glUniform3fv(prog->getUniform("diffc2"), 1, (float*)&dat.diff2);
   glUniform3fv(prog->getUniform("diffc3"), 1, (float*)&dat.diff3);
   glUniform1f(prog->getUniform("viewscale"), dat.zoom_level);
+  glUniform1f(prog->getUniform("fTest"), dat.fTest);
+  glUniform1f(prog->getUniform("map_distance_scale"), dat.map_distance_scale);
   glUniform1i(prog->getUniform("modulo"), dat.modulo);
   glUniform1i(prog->getUniform("iTest"), dat.iTest);
+  glUniform1i(prog->getUniform("shadow_mapping_level"), dat.shadow_mapping_level);
+  glUniform1i(prog->getUniform("maplevels_per_log"), dat.maplevels_per_log);
   glUniform1f(prog->getUniform("juliaFactor"), dat.juliaFactor);
   glUniform3fv(prog->getUniform("juliaPoint"), 1, (float*)&dat.juliaPoint);
   glUniform1i(prog->getUniform("mapIterCount"), dat.map_iter_count);

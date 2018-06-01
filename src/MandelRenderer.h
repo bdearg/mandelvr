@@ -35,8 +35,13 @@ struct MandelRenderer
     GLint map_iter_count = 4;
     GLfloat juliaFactor = 0.;
 
-	GLint iTest = 12.;
-    
+	GLint maplevels_per_log = 6.;
+	GLfloat map_distance_scale = 1.;
+
+	GLint iTest = 1;
+	GLfloat fTest = 1.;
+
+	GLint shadow_mapping_level = 4.;
     ImVec4 juliaPoint = ImVec4(0., 0., 0., 0.);
     
     // when set, the renderer will "guess" what's at the end

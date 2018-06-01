@@ -17,6 +17,8 @@ uniform vec3 viewoffset;
 uniform float viewscale;
 uniform float unitIPD;
 
+uniform int mappingLevel;
+
 uniform vec2 resolution;
 uniform float time;
 
@@ -26,8 +28,12 @@ uniform int intersectStepCount;
 uniform int mapIterCount;
 
 uniform int modulo;
+uniform int shadow_mapping_level;
 
 uniform int iTest;
+uniform float fTest;
+uniform float map_distance_scale;
+uniform int maplevels_per_log;
 
 uniform vec3 clearColor;
 uniform vec3 yColor;
@@ -80,7 +86,6 @@ float map( in int zlevel, in vec3 p, out vec4 resColor )
     // julia bulb
     vec3 jp = vec3(.4*cos(.25*time+1.), .2*sin(time+.2)+.7*sin(time*.33+0.5), .7*cos(time*.33+.05));
     //vec3 jp = juliaPoint
-  
     dz = 8.0*pow(sqrt(m),7.0)*dz + 1.0;
     //dz = 8.0*pow(m,3.5)*dz + 1.0;
 
@@ -88,7 +93,6 @@ float map( in int zlevel, in vec3 p, out vec4 resColor )
     float b = 8.0*acos( w.y/r);
     float a = 8.0*atan( w.x, w.z );
     w = mix(p, jp, clamp(juliaFactor, 0., 1.)) + pow(r,8.0) * vec3( sin(b)*sin(a), cos(b), sin(b)*cos(a) );
-
     trap = min( trap, vec4(abs(w),m) );
 
     m = dot(w,w);
@@ -121,7 +125,7 @@ float intersect( in vec3 ro, in vec3 rd, out vec4 rescol, in float px, out int g
   for( i=0; i<intersectStepCount; i++  )
   { 
     vec3 pos = ro + rd*t;
-    int imp = int(iTest * (1./viewscale - t));
+    int imp = int(maplevels_per_log * ((1-.125*log(viewscale)) - map_distance_scale*t));
     g = imp;
     float th = (intersectStepSize)*px*t;
     float h = map( imp, pos, trap );
@@ -131,6 +135,7 @@ float intersect( in vec3 ro, in vec3 rd, out vec4 rescol, in float px, out int g
 
   if ( i >= intersectStepCount && !exhaust )
   {
+	return -1;
     //discard; // leave fragments for the next step
   }
   else if( t<dis.y )
@@ -149,7 +154,7 @@ float softshadow( in vec3 ro, in vec3 rd, in float k )
   for( int i=0; i<64; i++ )
   {
     vec4 kk;
-    float h = map(4, ro + rd*t, kk);
+    float h = map(shadow_mapping_level, ro + rd*t, kk);
     res = min( res, k*h/t );
     if( res<0.001 ) break;
     t += clamp( h, 0.01, 0.2 );
@@ -158,12 +163,12 @@ float softshadow( in vec3 ro, in vec3 rd, in float k )
 }
 
 void vr_ray_projection(in vec2 clipspace, in mat4 cam, out vec3 ro, out vec3 rd){
-  mat4 trcam = transpose(rotationoffset)*transpose(cam);
+  mat4 trcam = transpose(cam*rotationoffset);
   vec3 cspr = vec3(clipspace.x, clipspace.y, 1.0);
-  vec3 vspr = (inverse(projection)*vec4(cspr, 1.0)).xyz;
+  vec3 vspr = (projection*vec4(cspr, 1.0)).xyz;
 
   vec3 eyeoffset = inverse(cam)[3].xyz - (headpose)[3].xyz;
-  ro = viewoffset*vec3(1.0, 1.0, -1.0) + (headpose)[3].xyz + eyeoffset*unitIPD;
+  ro = viewoffset*vec3(1.0, 1.0, -1.0) + /* (headpose)[3].xyz*viewscale + */ eyeoffset*unitIPD;
   //ro =  (headpose)[3].xyz*viewscale + eyeoffset*UNITIPD*viewscale;
   rd = (trcam[0].xyz*vspr.x + trcam[1].xyz*vspr.y + trcam[2].xyz*vspr.z);
 }
@@ -203,9 +208,9 @@ vec3 render( in vec2 p, in mat4 cam )
 
   // Ray origin and Ray direction derived from view matrix. 
   vec3 ro, rd;
-  vr_ray_projection(viewscale*clipspace, cam, ro, rd);
+  vr_ray_projection(clipspace*viewscale, cam, ro, rd);
 
-  // return(rd);
+ //  return(rd);
  // vec3  rd = normalize( (cam*vec4(clipspace,fle,0.0)).xyz );
 
   // intersect fractal
@@ -245,7 +250,6 @@ vec3 render( in vec2 p, in mat4 cam )
 
     // sun
     float sha1 = 1.0;//softshadow( pos+0.001*nor, light1, 32.0 );
-    //float sha1 = 1.0; //softshadow( pos+0.001*nor, light1, 32.0 );
     float dif1 = clamp( dot( light1, nor ), 0.0, 1.0 )*sha1;
     float spe1 = pow( clamp(dot(nor,hal),0.0,1.0), 32.0 )*dif1*(0.04+0.96*pow(clamp(1.0-dot(hal,light1),0.0,1.0),5.0));
     // bounce
@@ -262,7 +266,7 @@ vec3 render( in vec2 p, in mat4 cam )
     col *= lin;
     col = pow( col, vec3(0.7,0.9,1.0) );                  // fake SSS
     col += spe1*15.0;
-    col += 8.0*vec3(0.8,0.9,1.0)*(0.2+0.8*occ)*(0.03+0.97*pow(fac,5.0))*smoothstep(0.0,0.1,ref.y )*softshadow( pos+0.01*nor, ref, 2.0 );
+    col += 8.0*vec3(0.8,0.9,1.0)*(0.2+0.8*occ)*(0.03+0.97*pow(fac,5.0))*smoothstep(0.0,0.1,ref.y );//*softshadow( pos+0.01*nor, ref, 2.0 );
     //col = vec3(occ*occ);
     
     //col = mix( col, skycol, clamp(t/viewscale - viewscale, 0., 1.));

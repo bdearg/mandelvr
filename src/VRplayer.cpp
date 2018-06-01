@@ -1,14 +1,16 @@
 #include "VRplayer.hpp"
-
 #include <iostream>
 #include <sstream>
 #include <stdlib.h>
 #include <stdio.h>
 #include <openvr.h>
+
+#define GLM_ENABLE_EXPERIMENTAL
 #include "glm/glm.hpp"
 #include "glm/vec4.hpp"
 #include "glm/mat4x4.hpp"
 #include "glm/gtc/matrix_transform.hpp"
+#include "glm/gtx/quaternion.hpp"
 #include "glm/ext.hpp"
 
 
@@ -91,8 +93,10 @@ int32_t VRplayer::getAxisFromController(vr::TrackedDeviceIndex_t ctrlr, vr::EVRC
 void VRplayer::initControllers()
 {
 	bool ok = true;
+	return; // need code to make this more compatible with other VR setups
 	vr_controllers[CONTROLLER_LHAND] = playerVRSystem->GetTrackedDeviceIndexForControllerRole(vr::TrackedControllerRole_LeftHand);
 	vr_controllers[CONTROLLER_RHAND] = playerVRSystem->GetTrackedDeviceIndexForControllerRole(vr::TrackedControllerRole_RightHand);
+
 	if (vr_controllers[CONTROLLER_LHAND] == vr::k_unTrackedDeviceIndexInvalid)
 	{
 		cout << "Left hand controller not found." << endl;
@@ -107,7 +111,6 @@ void VRplayer::initControllers()
 	{
 		return;
 	}
-	//return; // need code to make this more compatible with other VR setups
 	useVRcontrollers = true;
 
 	lhandJoystickAxis = getAxisFromController(vr_controllers[CONTROLLER_LHAND], vr::k_eControllerAxis_Joystick);
@@ -157,7 +160,7 @@ mat4 VRplayer::getEyeView(vr::Hmd_Eye eye) const{
 	if(!playerVRSystem){
 		return(mat4(0.0));
 	}
-	mat4 hmdpose = inverse(vraffine_to_glm(HMDPose.mDeviceToAbsoluteTracking));
+	mat4 hmdpose = getHeadView();
 	mat4 eyepose = inverse(vraffine_to_glm(playerVRSystem->GetEyeToHeadTransform(eye)));
 
 	return(eyepose*hmdpose);
@@ -177,7 +180,7 @@ mat4 VRplayer::getEyeViewProj(vr::Hmd_Eye eye) const{
 	if(!playerVRSystem){
 		return(mat4(0.0));
 	}
-	mat4 hmdpose = inverse(vraffine_to_glm(HMDPose.mDeviceToAbsoluteTracking));
+	mat4 hmdpose = getHeadView();
 	mat4 eyepose = inverse(vraffine_to_glm(playerVRSystem->GetEyeToHeadTransform(eye)));
 	mat4 P = correct_matrix_order(playerVRSystem->GetProjectionMatrix(eye, .01, 100.0));
 
@@ -252,9 +255,15 @@ void VRplayer::playerControlsTick(GLFWwindow * window, double dt){
 		const unsigned char* buttoninput = glfwGetJoystickButtons(GLFW_JOYSTICK_1, &buttoncount);
 
 		jsAxis1X = joyinput[0];
-		jsAxis1Y = joyinput[1]; 
+		jsAxis1Y = -joyinput[1]; 
 		jsAxis2X = joyinput[2];
-		jsAxis2Y = joyinput[3];
+		jsAxis2Y = -joyinput[3];
+
+		// deadzone
+		if (abs(jsAxis1X) < .1) jsAxis1X = 0.;
+		if (abs(jsAxis1Y) < .1) jsAxis1Y = 0.;
+		if (abs(jsAxis2X) < .1) jsAxis2X = 0.;
+		if (abs(jsAxis2Y) < .1) jsAxis2Y = 0.;
 
 		b1Held = buttoninput[0];
 		b2Held = buttoninput[1];
@@ -279,11 +288,11 @@ void VRplayer::playerControlsTick(GLFWwindow * window, double dt){
 	worldPosition += glm::any(isnan(final_planar)) ? vec3(0.0) : final_planar;
 	worldPosition += glm::any(isnan(vertical_movement)) ? vec3(0.0) : vertical_movement;
 
-	float rotation_factor = -jsAxis2X * .6f;
+	float rotation_factor = jsAxis2X * .6f;
 	rotation_factor *= glm::mix(1., 100., boostAxis1) * glm::mix(1., 100., boostAxis2);
 
 	if (fabs(rotation_factor) > .05 && !isnan(rotation_factor) && !isinf(rotation_factor)) {
-		 rotationOffset *= angleAxis(rotation_factor * static_cast<float>(dt), upDir);
+		 rotationOffset *= angleAxis(rotation_factor * static_cast<float>(dt), vec3(0, 1, 0));
 	}
 
 	float shrinkFactor = b1Held ? 1. : 0.;
@@ -291,7 +300,7 @@ void VRplayer::playerControlsTick(GLFWwindow * window, double dt){
 	float scalefactor = (shrinkFactor > growFactor) ? mix(1.0, .5, dt) : mix(1.0, 2.0, dt);
 	if (shrinkFactor + growFactor > .05 && !isnan(scalefactor) && !isinf(scalefactor)) {
 		scale = scale * scalefactor;
-		scale = glm::clamp(scale, 1e-10L, 20.L);
+		scale = glm::clamp(scale, 1e-10L, 1.L);
 	}
 
 	float fshrinkFactor = b3Held ? 1. : 0.;
@@ -372,7 +381,7 @@ vec3 VRplayer::extractViewDir(const mat4 & view)
 
 void VRplayer::resetView()
 {
-	rotationOffset = glm::quat(glm::vec3(glm::radians(0.), 0., glm::radians(0.)));
+	rotationOffset = glm::quat(glm::vec3(glm::radians(0.), glm::radians(0.), glm::radians(0.)));
 	worldPosition = vec3(0.f, 0., -2.);
 	scale = 1.;
 	focusMult = 1.;

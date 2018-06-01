@@ -65,10 +65,10 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup>
-    <IncludePath>$(SolutionDir)\ext\glm;$(SolutionDir)\ext\glfw\include;$(SolutionDir)\ext\openvr\headers;$(SolutionDir)\ext\glad\include;$(VisualStudioDir)\SDKs\glm-0.9.8.5;$(VisualStudioDir)\SDKs\glfw-3.2.1.bin.WIN64\include;C:\OpenGL\OpenGL\include;$(VisualStudioDir)\SDKs\openvr\headers;$(IncludePath)</IncludePath>
+    <IncludePath>$(SolutionDir)\ext\glm;$(SolutionDir)\ext\openvr\headers;$(SolutionDir)\ext\glfw\include;$(SolutionDir)\ext\glad\include;$(VisualStudioDir)\SDKs\glm-0.9.8.5;$(VisualStudioDir)\SDKs\glfw-3.2.1.bin.WIN64\include;C:\OpenGL\OpenGL\include;$(VisualStudioDir)\SDKs\openvr\headers;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup>
-    <LibraryPath>$(SolutionDir)libs;$(SolutionDir)ext\openvr\lib\win32;C:\OpenGL\OpenGL\libs;$(VisualStudioDir)\SDKs\glfw-3.2.1.bin.WIN64\lib-vc2015\;$(VisualStudioDir)\SDKs\openvr\lib\win32;$(LibraryPath)</LibraryPath>
+    <LibraryPath>$(SolutionDir)\libs;C:\OpenGL\OpenGL\libs;$(VisualStudioDir)\SDKs\glfw-3.2.1.bin.WIN64\lib-vc2015\;$(VisualStudioDir)\SDKs\openvr\lib\win32;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
@@ -76,6 +76,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ReferencePath>$(SolutionDir);$(ReferencePath)</ReferencePath>
     <LinkIncremental>false</LinkIncremental>
+    <OutDir>$(SolutionDir)\build\$(Configuration)\</OutDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -165,7 +166,9 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="..\resources\IQ_juliabulb_derivative.fs" />
-    <None Include="..\resources\IQ_mandelbulb_derivative.fs" />
+    <None Include="..\resources\IQ_mandelbulb_derivative.fs">
+      <DeploymentContent Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</DeploymentContent>
+    </None>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
