@@ -53,8 +53,6 @@ struct MandelRenderer
   
   void render(std::shared_ptr<Program> prog, float zoomLevel, glm::vec2 size, bool exhaust);
   
-  void render(std::shared_ptr<Program> prog, float zoomLevel, glm::vec2 size, MarchingLayer &marcher, GLuint inputDepthBuf, int direction, bool isRoot);
-  
 private:
   void render_internal(std::shared_ptr<Program> prog, glm::vec2 size, RenderData &dat);
 };

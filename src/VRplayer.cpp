@@ -316,7 +316,7 @@ const glm::vec3 & VRplayer::getPositionOffset() const{
 
 const glm::mat4 & VRplayer::getRotationOffset() const
 {
-	return(toMat4(rotationOffset));
+	return(glm::toMat4(rotationOffset));
 }
 
 double VRplayer::getPlayerScale() const{

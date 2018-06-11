@@ -46,24 +46,10 @@ void MandelRenderer::render(std::shared_ptr<Program> prog, float zoomLevel, glm:
   d2.exhaust = exhaust;
   render_internal(prog, size, d2);
 }
-  
-void MandelRenderer::render(std::shared_ptr<Program> prog, float zoomLevel, glm::vec2 size, MarchingLayer &marcher, GLuint inputDepthBuf, int direction, bool isRoot)
-{
-  RenderData d2 = data;
-  d2.zoom_level = zoomLevel;
-  d2.map_iter_count = marcher.mappinglevel;
-  d2.exhaust = isRoot;
-  d2.depthbufferInput = inputDepthBuf;
-  d2.depthbufferOutput = marcher.getMarchDepthBuf();
-  d2.direction = direction;
-  render_internal(prog, size, d2);
-}
 
 void MandelRenderer::render_internal(std::shared_ptr<Program> prog, glm::vec2 size, RenderData &dat)
 {
   glViewport(0, 0, size.x, size.y);
-  
-  glm::mat4 view = glm::lookAt(pos, pos + forward, up);
   glClearColor(0.f, 0.f, 0.f, 0.0f);
   glClear(GL_COLOR_BUFFER_BIT);
   
@@ -72,7 +58,6 @@ void MandelRenderer::render_internal(std::shared_ptr<Program> prog, glm::vec2 si
   // doesn't seem to be a bottleneck right now.
   glUniform2f(prog->getUniform("resolution"), static_cast<float>(size.x), static_cast<float>(size.y));
   glUniform1i(prog->getUniform("intersectStepCount"), dat.intersect_step_count);
-  glUniform1f(prog->getUniform("intersectStepFactor"), dat.intersect_step_factor);
   glUniform3fv(prog->getUniform("clearColor"), 1, (float*)&dat.clear_color);
   glUniform3fv(prog->getUniform("yColor"), 1, (float*)&dat.y_color);
   glUniform3fv(prog->getUniform("zColor"), 1, (float*)&dat.z_color);
@@ -85,10 +70,7 @@ void MandelRenderer::render_internal(std::shared_ptr<Program> prog, glm::vec2 si
   glUniform1f(prog->getUniform("juliaFactor"), dat.juliaFactor);
   glUniform3fv(prog->getUniform("juliaPoint"), 1, (float*)&dat.juliaPoint);
   glUniform1i(prog->getUniform("mapIterCount"), dat.map_iter_count);
-  glUniform3fv(prog->getUniform("camOrigin"), 1, glm::value_ptr(pos));
   glUniform1i(prog->getUniform("exhaust"), dat.exhaust);
-  
-  glUniformMatrix4fv(prog->getUniform("view"), 1, GL_TRUE, glm::value_ptr(view));
   
   glBindVertexArray(VertexArrayUnitPlane);
   glDrawArrays(GL_TRIANGLES, 0, 6);

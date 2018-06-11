@@ -119,11 +119,11 @@ float intersect( in vec3 ro, in vec3 rd, out vec4 rescol, in float px, out int g
   for( i=0; i<intersectStepCount; i++  )
   { 
     vec3 pos = ro + rd*t;
-    int imp = int(12 * (1./zoomLevel - t));
-    g = imp
+    int imp = int(12 * (1./viewscale - t));
+    g = imp;
     float th = (intersectStepSize)*px*t;
     float h = map( imp, pos, trap );
-    if( t>dis.y || h<th || t/zoomLevel - zoomLevel > 1. ) break;
+    if( t>dis.y || h<th || t/viewscale - viewscale > 1. ) break;
     t += h;
   }
 
@@ -166,7 +166,7 @@ void vr_ray_projection(in vec2 clipspace, in mat4 cam, out vec3 ro, out vec3 rd)
   rd = trcam[0].xyz*vspr.x + trcam[1].xyz*vspr.y + trcam[2].xyz*vspr.z;
 }
 
-vec3 calcNormal( in int maplevel in vec3 pos, in float t, in float px )
+vec3 calcNormal( in int maplevel, in vec3 pos, in float t, in float px )
 {
   //return vec3(1.0, 0.0, 0.0);
   vec4 tmp;
@@ -263,7 +263,7 @@ vec3 render( in vec2 p, in mat4 cam )
     col += 8.0*vec3(0.8,0.9,1.0)*(0.2+0.8*occ)*(0.03+0.97*pow(fac,5.0))*smoothstep(0.0,0.1,ref.y )*softshadow( pos+0.01*nor, ref, 2.0 );
     //col = vec3(occ*occ);
     
-    col = mix( col, skycol, clamp(t/zoomLevel - zoomLevel, 0., 1.));
+    col = mix( col, skycol, clamp(t/viewscale - viewscale, 0., 1.));
   }
 
   // gamma

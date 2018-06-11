@@ -2,6 +2,7 @@
 #ifndef VRPLAYER_H_
 #define VRPLAYER_H_
 
+#define GLM_ENABLE_EXPERIMENTAL
 #include <openvr.h>
 #include <GLFW\glfw3.h>
 #include "glm/glm.hpp"
@@ -9,6 +10,7 @@
 #include "glm/mat4x4.hpp"
 #include "glm/gtc/matrix_transform.hpp"
 #include "glm/gtc/quaternion.hpp"
+#include "glm/gtx/quaternion.hpp"
 
 using namespace glm;
 using namespace std;

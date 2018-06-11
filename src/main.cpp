@@ -124,6 +124,7 @@ public:
 		pixshader->addUniform("projection");
 		pixshader->addUniform("intersectStepSize");
 		pixshader->addUniform("intersectStepCount");
+		pixshader->addUniform("mapIterCount");
 		pixshader->addUniform("exhaust");
 		pixshader->addUniform("unitIPD");
 		pixshader->addUniform("viewoffset");
@@ -502,13 +503,14 @@ public:
 		
 		bool showHUD = true;
     
-    if(ImGui::Begin("Position HUD", &showHUD, ImGuiWindowFlags_NoTitleBar|ImGuiWindowFlags_NoResize|ImGuiWindowFlags_AlwaysAutoResize|ImGuiWindowFlags_NoMove|ImGuiWindowFlags_NoSavedSettings|ImGuiWindowFlags_NoFocusOnAppearing|ImGuiWindowFlags_NoNav))
-    {
-      ImGui::Text("Position: X: %0.2f, Y: %0.2f, Z: %0.2f", mycam.pos.x, mycam.pos.y, mycam.pos.z);
+		if(ImGui::Begin("Position HUD", &showHUD, ImGuiWindowFlags_NoTitleBar|ImGuiWindowFlags_NoResize|ImGuiWindowFlags_AlwaysAutoResize|ImGuiWindowFlags_NoMove|ImGuiWindowFlags_NoSavedSettings|ImGuiWindowFlags_NoFocusOnAppearing|ImGuiWindowFlags_NoNav))
+		{
+			ImGui::Text("Position: X: %0.2f, Y: %0.2f, Z: %0.2f", mycam.pos.x, mycam.pos.y, mycam.pos.z);
       
-      ImGui::Text("Zoom Level:");
-      ImGui::SameLine(); ImGui::ProgressBar(-log(static_cast<float>(vrviewer->getPlayerScale()))/1e1);
-    }
+			ImGui::Text("Zoom Level:");
+			ImGui::SameLine(); ImGui::ProgressBar(-log(static_cast<float>(vrviewer->getPlayerScale()))/1e1);
+		}
+		ImGui::End();
 	}
 };
 
@@ -566,8 +568,6 @@ int main(int argc, char **argv)
 #ifdef OPENVRBUILD
 	application->initVRFBO();
 #endif
-
-	FPSdata dt;
 
 	// Loop until the user closes the window.
 	double lasttime = glfwGetTime();
