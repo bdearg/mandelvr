@@ -231,6 +231,8 @@ public:
 		//This is the standard:
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
+		mrender.init();
+
 		ImGui::CreateContext();
 		ImGui_ImplGlfwGL3_Init(windowManager->getHandle(), true);
 
@@ -398,7 +400,7 @@ public:
 
 			glBindFramebuffer(GL_FRAMEBUFFER, leftFBO.FBO);
 
-      mrender.render(pixshader, viewerscale, vec2(static_cast<float>(vr_width), static_cast<float>(vr_height)), false);
+			mrender.render(pixshader, viewerscale, vec2(static_cast<float>(vr_width), static_cast<float>(vr_height)), false);
 
 			pixshader->unbind();
 
@@ -421,7 +423,7 @@ public:
 
 			glBindFramebuffer(GL_FRAMEBUFFER, rightFBO.FBO);
 
-      mrender.render(pixshader, viewerscale, vec2(static_cast<float>(vr_width), static_cast<float>(vr_height)), false);
+			mrender.render(pixshader, viewerscale, vec2(static_cast<float>(vr_width), static_cast<float>(vr_height)), false);
 
 			pixshader->unbind();
 
@@ -505,7 +507,7 @@ public:
     
 		if(ImGui::Begin("Position HUD", &showHUD, ImGuiWindowFlags_NoTitleBar|ImGuiWindowFlags_NoResize|ImGuiWindowFlags_AlwaysAutoResize|ImGuiWindowFlags_NoMove|ImGuiWindowFlags_NoSavedSettings|ImGuiWindowFlags_NoFocusOnAppearing|ImGuiWindowFlags_NoNav))
 		{
-			ImGui::Text("Position: X: %0.2f, Y: %0.2f, Z: %0.2f", mycam.pos.x, mycam.pos.y, mycam.pos.z);
+			ImGui::Text("Position: X: %0.2f, Y: %0.2f, Z: %0.2f", pos.x, pos.y, pos.z);
       
 			ImGui::Text("Zoom Level:");
 			ImGui::SameLine(); ImGui::ProgressBar(-log(static_cast<float>(vrviewer->getPlayerScale()))/1e1);

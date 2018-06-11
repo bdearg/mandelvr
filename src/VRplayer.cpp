@@ -107,6 +107,8 @@ void VRplayer::initControllers()
 	{
 		return;
 	}
+	return; // need code to make this more compatible with other VR setups
+	useVRcontrollers = true;
 
 	lhandJoystickAxis = getAxisFromController(vr_controllers[CONTROLLER_LHAND], vr::k_eControllerAxis_Joystick);
 	rhandJoystickAxis = getAxisFromController(vr_controllers[CONTROLLER_RHAND], vr::k_eControllerAxis_Joystick);
@@ -219,23 +221,26 @@ void VRplayer::playerControlsTick(GLFWwindow * window, double dt){
 		initControllers();
 	}
 
-	if (playerVRSystem->IsTrackedDeviceConnected(vr_controllers[CONTROLLER_LHAND]))
+	if (useVRcontrollers)
 	{
-		playerVRSystem->GetControllerState(vr_controllers[CONTROLLER_LHAND], &lhand, sizeof(lhand));
-		jsAxis1X = max(min(lhand.rAxis[lhandJoystickAxis].x, 1.f), -1.f);
-		jsAxis1Y = max(min(lhand.rAxis[lhandJoystickAxis].y, 1.f), -1.f);
-		boostAxis1 = max(min(lhand.rAxis[lhandSqueezeAxis].x, 1.f), 0.f);
-		b1Held = lhand.ulButtonPressed & vr::ButtonMaskFromId(VRBUTTON_OCULUS_A);
-		b3Held = lhand.ulButtonPressed & vr::ButtonMaskFromId(VRBUTTON_OCULUS_B);
-	}
-	if (playerVRSystem->IsTrackedDeviceConnected(vr_controllers[CONTROLLER_RHAND]))
-	{
-		playerVRSystem->GetControllerState(vr_controllers[CONTROLLER_RHAND], &rhand, sizeof(rhand));
-		jsAxis2X = max(min(rhand.rAxis[lhandJoystickAxis].x, 1.f), -1.f);
-		jsAxis2Y = max(min(rhand.rAxis[lhandJoystickAxis].y, 1.f), -1.f);
-		boostAxis2 = max(min(rhand.rAxis[rhandSqueezeAxis].x, 1.f), 0.f);
-		b2Held = rhand.ulButtonPressed & vr::ButtonMaskFromId(VRBUTTON_OCULUS_X);
-		b4Held = rhand.ulButtonPressed & vr::ButtonMaskFromId(VRBUTTON_OCULUS_Y);
+		if (playerVRSystem->IsTrackedDeviceConnected(vr_controllers[CONTROLLER_LHAND]))
+		{
+			playerVRSystem->GetControllerState(vr_controllers[CONTROLLER_LHAND], &lhand, sizeof(lhand));
+			jsAxis1X = max(min(lhand.rAxis[lhandJoystickAxis].x, 1.f), -1.f);
+			jsAxis1Y = max(min(lhand.rAxis[lhandJoystickAxis].y, 1.f), -1.f);
+			boostAxis1 = max(min(lhand.rAxis[lhandSqueezeAxis].x, 1.f), 0.f);
+			b1Held = lhand.ulButtonPressed & vr::ButtonMaskFromId(VRBUTTON_OCULUS_A);
+			b3Held = lhand.ulButtonPressed & vr::ButtonMaskFromId(VRBUTTON_OCULUS_B);
+		}
+		if (playerVRSystem->IsTrackedDeviceConnected(vr_controllers[CONTROLLER_RHAND]))
+		{
+			playerVRSystem->GetControllerState(vr_controllers[CONTROLLER_RHAND], &rhand, sizeof(rhand));
+			jsAxis2X = max(min(rhand.rAxis[lhandJoystickAxis].x, 1.f), -1.f);
+			jsAxis2Y = max(min(rhand.rAxis[lhandJoystickAxis].y, 1.f), -1.f);
+			boostAxis2 = max(min(rhand.rAxis[rhandSqueezeAxis].x, 1.f), 0.f);
+			b2Held = rhand.ulButtonPressed & vr::ButtonMaskFromId(VRBUTTON_OCULUS_X);
+			b4Held = rhand.ulButtonPressed & vr::ButtonMaskFromId(VRBUTTON_OCULUS_Y);
+		}
 	}
 	else if (glfwJoystickPresent(GLFW_JOYSTICK_1)) {
 		int joycount, buttoncount;
@@ -243,9 +248,14 @@ void VRplayer::playerControlsTick(GLFWwindow * window, double dt){
 		const unsigned char* buttoninput = glfwGetJoystickButtons(GLFW_JOYSTICK_1, &buttoncount);
 
 		jsAxis1X = joyinput[0];
-		jsAxis1Y = joyinput[1];
+		jsAxis1Y = joyinput[1]; 
 		jsAxis2X = joyinput[2];
 		jsAxis2Y = joyinput[3];
+
+		b1Held = buttoninput[0];
+		b2Held = buttoninput[1];
+		b3Held = buttoninput[2];
+		b4Held = buttoninput[3];
 	}
 
 	movementscalar *= glm::mix(1., 100., boostAxis1) * glm::mix(1., 100., boostAxis2);
@@ -288,7 +298,6 @@ void VRplayer::playerControlsTick(GLFWwindow * window, double dt){
 		focusMult = glm::clamp(focusMult, 1e-10L, 20.L);
 	}
 
-	/*
 	if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
 		worldPosition += viewDir * movementscalar;
 	}
@@ -307,7 +316,6 @@ void VRplayer::playerControlsTick(GLFWwindow * window, double dt){
 	if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS) {
 		worldPosition += -upDir * movementscalar;
 	}
-	*/
 }
 
 const glm::vec3 & VRplayer::getPositionOffset() const{

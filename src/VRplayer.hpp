@@ -64,6 +64,8 @@ private:
 	vr::IVRSystem* playerVRSystem = nullptr;
 	vr::ETrackingUniverseOrigin trackingOrigin = vr::TrackingUniverseRawAndUncalibrated;
 
+	bool useVRcontrollers = false;
+
 	ScaleMode scalingMode = MANUAL; 
 
 	vr::TrackedDeviceIndex_t vr_controllers[2];
