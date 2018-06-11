@@ -18,6 +18,7 @@
 #include "WindowManager.h"
 #include "camera.h"
 #include "VRplayer.hpp"
+#include "MandelRenderer.h"
 
 #include "imgui_impl_glfw_gl3.h"
 // used for helper in perspective
@@ -64,6 +65,8 @@ public:
 	camera mycam;
 
 	unique_ptr<VRplayer> vrviewer;
+	
+	MandelRenderer mrender;
 
 	GLfloat intersectStepSize = 0.25;
 	GLint intersectStepCount = 128;
@@ -82,19 +85,53 @@ public:
 
 	void addShaderAttributes()
 	{
+#if 0
+
+  glUniform2f(prog->getUniform("resolution"), static_cast<float>(size.x), static_cast<float>(size.y));
+  glUniform1f(prog->getUniform("intersectThreshold"), dat.intersect_threshold);
+  glUniform1i(prog->getUniform("intersectStepCount"), dat.intersect_step_count);
+  glUniform1f(prog->getUniform("intersectStepFactor"), dat.intersect_step_factor);
+  glUniform3fv(prog->getUniform("clearColor"), 1, (float*)&dat.clear_color);
+  glUniform3fv(prog->getUniform("yColor"), 1, (float*)&dat.y_color);
+  glUniform3fv(prog->getUniform("zColor"), 1, (float*)&dat.z_color);
+  glUniform3fv(prog->getUniform("wColor"), 1, (float*)&dat.w_color);
+  glUniform3fv(prog->getUniform("diffc1"), 1, (float*)&dat.diff1);
+  glUniform3fv(prog->getUniform("diffc2"), 1, (float*)&dat.diff2);
+  glUniform3fv(prog->getUniform("diffc3"), 1, (float*)&dat.diff3);
+  glUniform1f(prog->getUniform("zoomLevel"), dat.zoom_level);
+  glUniform1i(prog->getUniform("modulo"), dat.modulo);
+  glUniform1f(prog->getUniform("time"), dat.time);
+  glUniform1f(prog->getUniform("juliaFactor"), dat.juliaFactor);
+  glUniform3fv(prog->getUniform("juliaPoint"), 1, (float*)&dat.juliaPoint);
+  glUniform1i(prog->getUniform("mapIterCount"), dat.map_iter_count);
+  glUniform3fv(prog->getUniform("camOrigin"), 1, glm::value_ptr(pos));
+  glUniform1i(prog->getUniform("exhaust"), dat.exhaust);
+#endif
 		pixshader->addAttribute("vertPos");
 		pixshader->addUniform("resolution");
 		pixshader->addUniform("time");
 		pixshader->addUniform("view");
+		pixshader->addUniform("clearColor");
+		pixshader->addUniform("yColor");
+		pixshader->addUniform("zColor");
+		pixshader->addUniform("wColor");
+		pixshader->addUniform("diffc1");
+		pixshader->addUniform("diffc2");
+		pixshader->addUniform("diffc3");
+		pixshader->addUniform("modulo");
+		pixshader->addUniform("juliaFactor");
+		pixshader->addUniform("juliaPoint");
 		pixshader->addUniform("projection");
 		pixshader->addUniform("intersectStepSize");
 		pixshader->addUniform("intersectStepCount");
+		pixshader->addUniform("exhaust");
 		pixshader->addUniform("unitIPD");
 		pixshader->addUniform("viewoffset");
 		pixshader->addUniform("viewscale");
 		pixshader->addUniform("P");
 		pixshader->addUniform("headpose");
 		pixshader->addUniform("rotationoffset");
+		pixshader->addUniform("modulo");
 	}
 
 	void keyCallback(GLFWwindow *window, int key, int scancode, int action, int mods)
@@ -347,12 +384,8 @@ public:
 		float viewerscale = static_cast<float>(vrviewer->getPlayerScale());
 		{ // Left eye
 			pixshader->bind();
-			glUniform2f(pixshader->getUniform("resolution"), static_cast<float>(vr_width), static_cast<float>(vr_height));
 			glUniform1f(pixshader->getUniform("time"), glfwGetTime());
-			glUniform1f(pixshader->getUniform("intersectStepSize"), intersectStepSize);
-			glUniform1i(pixshader->getUniform("intersectStepCount"), intersectStepCount);
 			glUniform1f(pixshader->getUniform("unitIPD"), vrviewer->getFocusMult());
-			glUniform1f(pixshader->getUniform("viewscale"), viewerscale);
 			mat4 view = vrviewer->getEyeView(vr::Eye_Left);
 			mat4 viewrot = view*worldTransform;
 			mat4 P = vrviewer->getEyeProj(vr::Eye_Left);
@@ -364,8 +397,7 @@ public:
 
 			glBindFramebuffer(GL_FRAMEBUFFER, leftFBO.FBO);
 
-			glBindVertexArray(VertexArrayUnitPlane);
-			glDrawArrays(GL_TRIANGLES, 0, 6);
+      mrender.render(pixshader, viewerscale, vec2(static_cast<float>(vr_width), static_cast<float>(vr_height)), false);
 
 			pixshader->unbind();
 
@@ -375,12 +407,8 @@ public:
 
 		{ // Right eye
 			pixshader->bind();
-			glUniform2f(pixshader->getUniform("resolution"), static_cast<float>(vr_width), static_cast<float>(vr_height));
 			glUniform1f(pixshader->getUniform("time"), glfwGetTime());
-			glUniform1f(pixshader->getUniform("intersectStepSize"), intersectStepSize);
-			glUniform1i(pixshader->getUniform("intersectStepCount"), intersectStepCount);
 			glUniform1f(pixshader->getUniform("unitIPD"), vrviewer->getFocusMult());
-			glUniform1f(pixshader->getUniform("viewscale"), viewerscale);
 			mat4 view = vrviewer->getEyeView(vr::Eye_Right);
 			mat4 viewrot = view*worldTransform;
 			mat4 P = vrviewer->getEyeProj(vr::Eye_Right);
@@ -392,8 +420,7 @@ public:
 
 			glBindFramebuffer(GL_FRAMEBUFFER, rightFBO.FBO);
 
-			glBindVertexArray(VertexArrayUnitPlane);
-			glDrawArrays(GL_TRIANGLES, 0, 6);
+      mrender.render(pixshader, viewerscale, vec2(static_cast<float>(vr_width), static_cast<float>(vr_height)), false);
 
 			pixshader->unbind();
 
@@ -426,9 +453,21 @@ public:
 	void doImgui()
 	{
 		ImGui::Begin("Mandelbulb");
-		ImGui::Text("Mandelbulb controls");                           // Display some text (you can use a format string too)
-
-		ImGui::SliderInt("Intersect Step Count", &intersectStepCount, 32, 1024);
+		ImGui::Text("Mandelbulb controls");                           // Display some text (you can use a format string too)                           // Display some text (you can use a format string too)
+    ImGui::ColorEdit3("clear color", (float*)&mrender.data.clear_color); // Edit 3 floats representing a color
+    ImGui::ColorEdit3("y color", (float*)&mrender.data.y_color); // Edit 3 floats representing a color
+    ImGui::ColorEdit3("z color", (float*)&mrender.data.z_color); // Edit 3 floats representing a color
+    ImGui::ColorEdit3("w color", (float*)&mrender.data.w_color); // Edit 3 floats representing a color
+    ImGui::ColorEdit3("diffuse 1", (float*)&mrender.data.diff1);
+    ImGui::ColorEdit3("diffuse 2", (float*)&mrender.data.diff2);
+    ImGui::ColorEdit3("diffuse 3", (float*)&mrender.data.diff3);
+    
+    ImGui::SliderInt("intersect step count", &mrender.data.intersect_step_count, 1, 1024);
+    ImGui::SliderFloat("intersect step factor", &mrender.data.intersect_step_factor, 1e-20, 1.f, "%.3e", 1.5f);
+    ImGui::SliderInt("Mandelbulb modulo", &mrender.data.modulo, 2, 32);
+    ImGui::SliderInt("Mandelbulb map iter count", &mrender.data.map_iter_count, 1, 32);
+	  ImGui::SliderFloat3("Julia Point", (float*)&mrender.data.juliaPoint, -1., 1.);
+	  ImGui::SliderFloat("Julia Factor", &mrender.data.juliaFactor, 0.f, 1.f);
 		ImGui::SliderFloat("Intersect Step Size", &intersectStepSize, 2.5e-12, 15., "%.3e", 10.f);
 
 
@@ -460,6 +499,16 @@ public:
 		ImGui::Text("Y - Increase inter-eye distance");
 		ImGui::Text("Squeeze trigger - Boost");
 		ImGui::End();
+		
+		bool showHUD = true;
+    
+    if(ImGui::Begin("Position HUD", &showHUD, ImGuiWindowFlags_NoTitleBar|ImGuiWindowFlags_NoResize|ImGuiWindowFlags_AlwaysAutoResize|ImGuiWindowFlags_NoMove|ImGuiWindowFlags_NoSavedSettings|ImGuiWindowFlags_NoFocusOnAppearing|ImGuiWindowFlags_NoNav))
+    {
+      ImGui::Text("Position: X: %0.2f, Y: %0.2f, Z: %0.2f", mycam.pos.x, mycam.pos.y, mycam.pos.z);
+      
+      ImGui::Text("Zoom Level:");
+      ImGui::SameLine(); ImGui::ProgressBar(-log(static_cast<float>(vrviewer->getPlayerScale()))/1e1);
+    }
 	}
 };
 
@@ -473,35 +522,6 @@ static void CreateEyeFBO(UINT width, UINT height, GLuint* fbo, GLuint* colorattc
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, *colorattch, 0);
-}
-
-struct FPSdata {
-	bool dataInit = false;
-	chrono::microseconds fpsbuffer[FPSBUFSIZE];
-	size_t fpsoff = 0;
-	chrono::steady_clock::time_point start, stop;
-};
-
-void startFrameCapture(FPSdata &dt)
-{
-	dt.start = chrono::steady_clock::now();
-}
-
-void showFPS(FPSdata &dt)
-{
-	dt.stop = chrono::steady_clock::now();
-	auto frame_duration = chrono::duration_cast<chrono::microseconds>(dt.stop - dt.start);
-	if (!dt.dataInit)
-	{
-		for (auto i = 0; i < FPSBUFSIZE; i++)
-		{
-			dt.fpsbuffer[i] = frame_duration;
-		}
-	}
-	dt.fpsbuffer[(++dt.fpsoff) % FPSBUFSIZE] = frame_duration;
-	dt.fpsoff %= FPSBUFSIZE;
-	double avgfps = 0.0; for (int i = 0; i < FPSBUFSIZE; i++) { avgfps += 1e6 / dt.fpsbuffer[i].count(); } avgfps /= FPSBUFSIZE;
-	//cout << "Frame: " << dt.fpsbuffer[dt.fpsoff].count() / 1e3 << "ms, FPS: " << 1e6 / dt.fpsbuffer[dt.fpsoff].count() << ", FPS(avg): " << avgfps << endl;
 }
 
 //*********************************************************************************************************
@@ -553,7 +573,6 @@ int main(int argc, char **argv)
 	double lasttime = glfwGetTime();
 	while (!glfwWindowShouldClose(windowManager->getHandle()))
 	{
-		startFrameCapture(dt);
 		// Render scene.
 #ifdef OPENVRBUILD
 		application->vrviewer->playerControlsTick(windowManager->getHandle(), glfwGetTime() - lasttime);
@@ -565,7 +584,6 @@ int main(int argc, char **argv)
 
 		// Swap front and back buffers.
 		glfwSwapBuffers(windowManager->getHandle());
-		showFPS(dt);
 		// Poll for and process events.
 		glfwPollEvents();
 	}
