@@ -35,6 +35,8 @@ uniform int intersectStartStep;
 uniform float intersectThreshold;
 uniform int intersectStepCount;
 uniform float intersectStepFactor;
+uniform float juliaFactor;
+uniform vec3 juliaPoint;
 
 uniform int modulo;
 
@@ -43,6 +45,8 @@ uniform float fle;
 uniform float escapeFactor;
 uniform float mapResultFactor;
 uniform int mapIterCount;
+
+uniform float time;
 
 uniform bool exhaust;
 
@@ -83,28 +87,33 @@ vec2 isphere( in vec4 sph, in vec3 ro, in vec3 rd )
 
 // The "map" function for our fractal
 // Arguments:
+// `zlevel`: the mapping level to calculate at
 // `p`: The point to sample
 // Return:
 // `resColor`:  the color to render at this sample
 // `out`:       the "magnitude" at this point
-float map( in vec3 p, out vec4 resColor )
+float map(in int zlevel, in vec3 p, out vec4 resColor )
 {
-#if 0
   vec3 w = p;
   float m = dot(w,w);
 
   vec4 trap = vec4(abs(w),m);
   float dz = startOffset;
+  
+  int maxMapIter = max(zlevel, mapIterCount);
 
-  for( int i=0; i<mapIterCount; i++ )
+  for( int i=0; i<maxMapIter; i++ )
   {
+	  //julia bulb
+	  vec3 jp = vec3(.4*cos(.25*time+1.), .2*sin(time+.2)+.7*sin(time*.33+0.5), .7*cos(time*.33+.05));
+	  //vec3 jp = juliaPoint;
     dz = modulo*pow(sqrt(m),modulo-1.)*dz + 1.0;
     //dz = 8.0*pow(m,3.5)*dz + 1.0;
 
     float r = length(w);
     float b = modulo*acos( w.y/r);
     float a = modulo*atan( w.x, w.z );
-    w = p + pow(r,modulo) * vec3( sin(b)*sin(a), cos(b), sin(b)*cos(a) );
+    w = mix(p, jp, clamp(juliaFactor, 0., 1.)) + pow(r,modulo) * vec3( sin(b)*sin(a), cos(b), sin(b)*cos(a) );
 
     trap = min( trap, vec4(abs(w), m) );
 
@@ -116,54 +125,9 @@ float map( in vec3 p, out vec4 resColor )
   resColor = vec4(m,trap.yzw);
 
   return mapResultFactor*0.25*log(m)*sqrt(m)/dz;
-#else
-  // experimental high-precision map function
-  vec3 w = p;
-  float m = dot(w,w);
-
-  vec4 trap = vec4(abs(w),m);
-  float dz = startOffset;
-
-  for( int i=0; i<mapIterCount; i++ )
-  {
-    // +y: Real axis
-    // +z: i
-    // +x: j
-    // j**2 = -1
-    // i**2 = -1
-    
-    // this expansion of the above for modulus = 8
-    // provided by inigo quilez
-    float m2 = m*m;
-    float m4 = m2*m2;
-		dz = 8.0*sqrt(m4*m2*m)*dz + 1.0;
-
-    float x = w.x; float x2 = x*x; float x4 = x2*x2;
-    float y = w.y; float y2 = y*y; float y4 = y2*y2;
-    float z = w.z; float z2 = z*z; float z4 = z2*z2;
-
-    float k3 = x2 + z2;
-    float k2 = inversesqrt( k3*k3*k3*k3*k3*k3*k3 );
-    float k1 = x4 + y4 + z4 - 6.0*y2*z2 - 6.0*x2*y2 + 2.0*z2*x2;
-    float k4 = x2 - y2 + z2;
-
-    w.x = p.x +  64.0*x*y*z*(x2-z2)*k4*(x4-6.0*x2*z2+z4)*k1*k2;
-    w.y = p.y + -16.0*y2*k3*k4*k4 + k1*k1;
-    w.z = p.z +  -8.0*y*k4*(x4*x4 - 28.0*x4*x2*z2 + 70.0*x4*z4 - 28.0*x2*z2*z4 + z4*z4)*k1*k2;
-    trap = min( trap, vec4(abs(w), m) );
-
-    m = dot(w,w);
-    if( m > 64*escapeFactor )
-      break;
-  }
-
-  resColor = vec4(m,trap.yzw);
-
-  return mapResultFactor*0.25*log(float(m))*sqrt(m)/dz;
-#endif
 }
 
-float intersect( in vec3 ro, in vec3 rd, out vec4 rescol, in float px, in ivec2 coord )
+float intersect( in vec3 ro, in vec3 rd, out vec4 rescol, in float px, in ivec2 coord, out int g)
 {
   float res = -1.0;
 
@@ -183,9 +147,11 @@ float intersect( in vec3 ro, in vec3 rd, out vec4 rescol, in float px, in ivec2 
   for( i=0; i<intersectStepCount; i++ )
   {
     vec3 pos = ro + rd*t;
+    int imp = int(12 * (1./zoomLevel - t));
+    g = imp;
     float th = intersectThreshold*px*t*zoomLevel;
-    float h = map( pos, trap );
-    if( t>dis.y || h<th ) break;
+    float h = map( imp , pos, trap );
+    if( t>dis.y || h<th || t/zoomLevel - zoomLevel > 1.) break;
     t += h*intersectStepFactor;
   }
   
@@ -213,7 +179,7 @@ float softshadow( in vec3 ro, in vec3 rd, in float k )
   for( int i=0; i<64; i++ )
   {
     vec4 kk;
-    float h = map(ro + rd*t, kk);
+    float h = map(4, ro + rd*t, kk);
     res = min( res, k*h/t );
     if( res<0.001 ) break;
     t += clamp( h, 0.01, 0.2 );
@@ -221,15 +187,15 @@ float softshadow( in vec3 ro, in vec3 rd, in float k )
   return clamp( res, 0.0, 1.0 );
 }
 
-vec3 calcNormal( in vec3 pos, in float t, in float px )
+vec3 calcNormal( in int maplevel, in vec3 pos, in float t, in float px )
 {
 //  return vec3(1.0, 0.0, 0.0);
   vec4 tmp;
   vec2 eps = vec2( zoomLevel*0.25*px, 0.0 );
   return normalize( vec3(
-        map(pos+eps.xyy,tmp) - map(pos-eps.xyy,tmp),
-        map(pos+eps.yxy,tmp) - map(pos-eps.yxy,tmp),
-        map(pos+eps.yyx,tmp) - map(pos-eps.yyx,tmp) ) );
+        map(maplevel, pos+eps.xyy,tmp) - map(maplevel, pos-eps.xyy,tmp),
+        map(maplevel, pos+eps.yxy,tmp) - map(maplevel, pos-eps.yxy,tmp),
+        map(maplevel, pos+eps.yyx,tmp) - map(maplevel, pos-eps.yyx,tmp) ) );
 
 }
 
@@ -259,16 +225,19 @@ vec3 render( in vec2 p, in mat4 cam )
   vec4 tra;
   // rounded to integer
   ivec2 ip = ivec2(p);
-  float t = intersect( ro, rd, tra, px, ip );
+  int g;
+  float t = intersect( ro, rd, tra, px, ip, g );
 
   vec3 col;
+
+  vec3 skycol = clearColor*(0.6+0.4*rd.y);
+  skycol += 5.0*clearColor*pow( clamp(dot(rd,light1),0.0,1.0), 32.0 );
   
   if( t<0.0 )
   {
 //    col  = vec3(0.8,.95,1.0)*(0.6+0.4*rd.y);
 //    col += 5.0*vec3(0.8,0.7,0.5)*pow( clamp(dot(rd,light1),0.0,1.0), 32.0 );
-    col  = clearColor*(0.6+0.4*rd.y);
-    col += 5.0*clearColor*pow( clamp(dot(rd,light1),0.0,1.0), 32.0 );
+    col  = skycol;
   }
   // color fractal
   else
@@ -283,14 +252,14 @@ vec3 render( in vec2 p, in mat4 cam )
 
     // lighting terms
     vec3 pos = ro + t*rd;
-    vec3 nor = calcNormal( pos, t, px );
+    vec3 nor = calcNormal(g, pos, t, px );
     vec3 hal = normalize( light1-rd);
     vec3 ref = reflect( rd, nor );
     float occ = clamp(0.05*log(tra.x),0.0,1.0);
     float fac = clamp(1.0+dot(rd,nor),0.0,1.0);
 
     // sun
-    float sha1 = softshadow( pos+0.001*nor, light1, 32.0 );
+    float sha1 = 1.;//softshadow( pos+0.001*nor, light1, 32.0 );
     //float sha1 = 1.0; //softshadow( pos+0.001*nor, light1, 32.0 );
     float dif1 = clamp( dot( light1, nor ), 0.0, 1.0 )*sha1;
     float spe1 = pow( clamp(dot(nor,hal),0.0,1.0), 32.0 )*dif1*(0.04+0.96*pow(clamp(1.0-dot(hal,light1),0.0,1.0),5.0));
@@ -310,6 +279,9 @@ vec3 render( in vec2 p, in mat4 cam )
     col += spe1*15.0;
     //col += 8.0*vec3(0.8,0.9,1.0)*(0.2+0.8*occ)*(0.03+0.97*pow(fac,5.0))*smoothstep(0.0,0.1,ref.y )*softshadow( pos+0.01*nor, ref, 2.0 );
     //col = vec3(occ*occ);
+
+	  // add "hiding fog"
+	  col = mix( col, skycol, clamp(t/zoomLevel - zoomLevel, 0., 1.));
   }
   // gamma
   return sqrt( col );

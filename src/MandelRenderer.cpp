@@ -75,6 +75,9 @@ void MandelRenderer::render_internal(std::shared_ptr<Program> prog, glm::vec3 po
   glBindImageTexture(1, dat.depthbufferOutput, 0, GL_TRUE, dat.direction, GL_WRITE_ONLY, GL_R32F);
   glUniform1i(prog->getUniform("outputDepthBuffer"), 1);
   
+  // We might be able to do a uniform buffer struct, but that limits
+  // free edits/experimentation to the data passed for now, and it
+  // doesn't seem to be a bottleneck right now.
   glUniform2f(prog->getUniform("resolution"), static_cast<float>(size.x), static_cast<float>(size.y));
   glUniform1f(prog->getUniform("intersectThreshold"), dat.intersect_threshold);
   glUniform1i(prog->getUniform("intersectStepCount"), dat.intersect_step_count);
@@ -92,6 +95,9 @@ void MandelRenderer::render_internal(std::shared_ptr<Program> prog, glm::vec3 po
   glUniform1i(prog->getUniform("modulo"), dat.modulo);
   glUniform1f(prog->getUniform("escapeFactor"), dat.escape_factor);
   glUniform1f(prog->getUniform("mapResultFactor"), dat.map_result_factor);
+  glUniform1f(prog->getUniform("time"), dat.time);
+  glUniform1f(prog->getUniform("juliaFactor"), dat.juliaFactor);
+  glUniform3fv(prog->getUniform("juliaPoint"), 1, (float*)&dat.juliaPoint);
   glUniform1i(prog->getUniform("mapIterCount"), dat.map_iter_count);
   glUniform3fv(prog->getUniform("camOrigin"), 1, glm::value_ptr(pos));
   glUniform1i(prog->getUniform("exhaust"), dat.exhaust);
