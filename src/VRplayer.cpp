@@ -107,7 +107,7 @@ void VRplayer::initControllers()
 	{
 		return;
 	}
-	return; // need code to make this more compatible with other VR setups
+	//return; // need code to make this more compatible with other VR setups
 	useVRcontrollers = true;
 
 	lhandJoystickAxis = getAxisFromController(vr_controllers[CONTROLLER_LHAND], vr::k_eControllerAxis_Joystick);
@@ -201,11 +201,15 @@ void VRplayer::setStandingMode(){
 
 void VRplayer::playerControlsTick(GLFWwindow * window, double dt){
 	mat4 view = getHeadView();
-	mat4 rotTp = toMat4(rotationOffset);
-	mat4 rview = rotTp * view;
-	vec3 rightDir = normalize(vec4(0, 0, -1, 0) * rview);
-	vec3 upDir = normalize(vec4(0, 1, 0, 0) * rview);
-	vec3 viewDir = normalize(vec4(-1, 0, 0, 0) * rview);
+	mat4 rot = toMat4(rotationOffset);
+	mat4 rviewTp = glm::inverse(glm::transpose(view * rot));
+
+	// cam: eyeview
+	// rotationoffset
+
+	vec3 rightDir = normalize(rviewTp[0]);
+	vec3 upDir = normalize(rviewTp[1]);
+	vec3 viewDir = normalize(rviewTp[2]);
 
 	const float movementInhibitor = 0.25;
 	float movementscalar = static_cast<float>(movementInhibitor*scale*dt);
@@ -368,8 +372,8 @@ vec3 VRplayer::extractViewDir(const mat4 & view)
 
 void VRplayer::resetView()
 {
-	rotationOffset = glm::quat(glm::vec3(glm::radians(60.), 0., glm::radians(-45.)));
-	worldPosition = vec3(0.f);
+	rotationOffset = glm::quat(glm::vec3(glm::radians(0.), 0., glm::radians(0.)));
+	worldPosition = vec3(0.f, 0., -2.);
 	scale = 1.;
 	focusMult = 1.;
 }

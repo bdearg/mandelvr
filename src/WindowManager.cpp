@@ -113,6 +113,15 @@ bool WindowManager::init(int const width, int const height)
 
 	std::cout << "OpenGL version: " << glGetString(GL_VERSION) << std::endl;
 	std::cout << "GLSL version: " << glGetString(GL_SHADING_LANGUAGE_VERSION) << std::endl;
+	std::cout << "GLSL vendor: " << glGetString(GL_VENDOR) << std::endl;
+	std::cout << "GLSL renderer: " << glGetString(GL_RENDERER) << std::endl;
+	int n;
+	glGetIntegerv(GL_NUM_EXTENSIONS, &n);
+	std::cout << "Extensions: " << n << std::endl;
+	for (int i = 0; i < n; i++)
+	{
+		std::cout << glGetStringi(GL_EXTENSIONS, i) << std::endl;
+	}
 
 	// Set vsync
 //	glfwSwapInterval(1);

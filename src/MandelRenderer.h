@@ -34,12 +34,14 @@ struct MandelRenderer
     GLfloat map_result_factor = 1.;
     GLint map_iter_count = 4;
     GLfloat juliaFactor = 0.;
+
+	GLint iTest = 12.;
     
     ImVec4 juliaPoint = ImVec4(0., 0., 0., 0.);
     
     // when set, the renderer will "guess" what's at the end
     // of a raymarching
-    GLboolean exhaust = 0;
+    GLboolean exhaust = 1;
     
     GLfloat time = 0.;
     int direction = 0;

@@ -71,8 +71,8 @@ private:
 	vr::TrackedDeviceIndex_t vr_controllers[2];
 	int lhandJoystickAxis = -1, rhandJoystickAxis = -1, lhandSqueezeAxis = -1, rhandSqueezeAxis = -1;
 
-	vec3 worldPosition = vec3(0.0);
-	quat rotationOffset = glm::quat(glm::vec3(glm::radians(60.), 0., glm::radians(-45.)));
+	vec3 worldPosition = vec3(0.0, 0.f, 2.f);
+	quat rotationOffset = glm::quat(glm::vec3(glm::radians(0.), glm::radians(180.), glm::radians(0.)));
 	long double scale = 1.0;
 	long double focusMult = 1.0;
 };

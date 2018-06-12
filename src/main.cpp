@@ -85,28 +85,6 @@ public:
 
 	void addShaderAttributes()
 	{
-#if 0
-
-  glUniform2f(prog->getUniform("resolution"), static_cast<float>(size.x), static_cast<float>(size.y));
-  glUniform1f(prog->getUniform("intersectThreshold"), dat.intersect_threshold);
-  glUniform1i(prog->getUniform("intersectStepCount"), dat.intersect_step_count);
-  glUniform1f(prog->getUniform("intersectStepFactor"), dat.intersect_step_factor);
-  glUniform3fv(prog->getUniform("clearColor"), 1, (float*)&dat.clear_color);
-  glUniform3fv(prog->getUniform("yColor"), 1, (float*)&dat.y_color);
-  glUniform3fv(prog->getUniform("zColor"), 1, (float*)&dat.z_color);
-  glUniform3fv(prog->getUniform("wColor"), 1, (float*)&dat.w_color);
-  glUniform3fv(prog->getUniform("diffc1"), 1, (float*)&dat.diff1);
-  glUniform3fv(prog->getUniform("diffc2"), 1, (float*)&dat.diff2);
-  glUniform3fv(prog->getUniform("diffc3"), 1, (float*)&dat.diff3);
-  glUniform1f(prog->getUniform("zoomLevel"), dat.zoom_level);
-  glUniform1i(prog->getUniform("modulo"), dat.modulo);
-  glUniform1f(prog->getUniform("time"), dat.time);
-  glUniform1f(prog->getUniform("juliaFactor"), dat.juliaFactor);
-  glUniform3fv(prog->getUniform("juliaPoint"), 1, (float*)&dat.juliaPoint);
-  glUniform1i(prog->getUniform("mapIterCount"), dat.map_iter_count);
-  glUniform3fv(prog->getUniform("camOrigin"), 1, glm::value_ptr(pos));
-  glUniform1i(prog->getUniform("exhaust"), dat.exhaust);
-#endif
 		pixshader->addAttribute("vertPos");
 		pixshader->addUniform("resolution");
 		pixshader->addUniform("time");
@@ -133,6 +111,8 @@ public:
 		pixshader->addUniform("headpose");
 		pixshader->addUniform("rotationoffset");
 		pixshader->addUniform("modulo");
+
+		pixshader->addUniform("iTest");
 	}
 
 	void keyCallback(GLFWwindow *window, int key, int scancode, int action, int mods)
@@ -400,7 +380,7 @@ public:
 
 			glBindFramebuffer(GL_FRAMEBUFFER, leftFBO.FBO);
 
-			mrender.render(pixshader, viewerscale, vec2(static_cast<float>(vr_width), static_cast<float>(vr_height)), false);
+			mrender.render(pixshader, viewerscale, vec2(static_cast<float>(vr_width), static_cast<float>(vr_height)), true);
 
 			pixshader->unbind();
 
@@ -423,7 +403,7 @@ public:
 
 			glBindFramebuffer(GL_FRAMEBUFFER, rightFBO.FBO);
 
-			mrender.render(pixshader, viewerscale, vec2(static_cast<float>(vr_width), static_cast<float>(vr_height)), false);
+			mrender.render(pixshader, viewerscale, vec2(static_cast<float>(vr_width), static_cast<float>(vr_height)), true);
 
 			pixshader->unbind();
 
@@ -469,6 +449,7 @@ public:
     ImGui::SliderFloat("intersect step factor", &mrender.data.intersect_step_factor, 1e-20, 1.f, "%.3e", 1.5f);
     ImGui::SliderInt("Mandelbulb modulo", &mrender.data.modulo, 2, 32);
     ImGui::SliderInt("Mandelbulb map iter count", &mrender.data.map_iter_count, 1, 32);
+	ImGui::SliderInt("Int test", &mrender.data.iTest, 1, 32);
 	  ImGui::SliderFloat3("Julia Point", (float*)&mrender.data.juliaPoint, -1., 1.);
 	  ImGui::SliderFloat("Julia Factor", &mrender.data.juliaFactor, 0.f, 1.f);
 		ImGui::SliderFloat("Intersect Step Size", &intersectStepSize, 2.5e-12, 15., "%.3e", 10.f);

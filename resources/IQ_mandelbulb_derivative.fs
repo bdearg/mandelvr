@@ -27,6 +27,8 @@ uniform int mapIterCount;
 
 uniform int modulo;
 
+uniform int iTest;
+
 uniform vec3 clearColor;
 uniform vec3 yColor;
 uniform vec3 zColor;
@@ -119,17 +121,17 @@ float intersect( in vec3 ro, in vec3 rd, out vec4 rescol, in float px, out int g
   for( i=0; i<intersectStepCount; i++  )
   { 
     vec3 pos = ro + rd*t;
-    int imp = int(12 * (1./viewscale - t));
+    int imp = int(iTest * (1./viewscale - t));
     g = imp;
     float th = (intersectStepSize)*px*t;
     float h = map( imp, pos, trap );
-    if( t>dis.y || h<th || t/viewscale - viewscale > 1. ) break;
+    if( t>dis.y || h<th ) break;
     t += h;
   }
 
   if ( i >= intersectStepCount && !exhaust )
   {
-    discard; // leave fragments for the next step
+    //discard; // leave fragments for the next step
   }
   else if( t<dis.y )
   {
@@ -161,9 +163,9 @@ void vr_ray_projection(in vec2 clipspace, in mat4 cam, out vec3 ro, out vec3 rd)
   vec3 vspr = (inverse(projection)*vec4(cspr, 1.0)).xyz;
 
   vec3 eyeoffset = inverse(cam)[3].xyz - (headpose)[3].xyz;
-  ro = viewoffset*vec3(1.0, 1.0, -1.0) + (headpose)[3].xyz*viewscale + eyeoffset*unitIPD*viewscale;
+  ro = viewoffset*vec3(1.0, 1.0, -1.0) + (headpose)[3].xyz + eyeoffset*unitIPD;
   //ro =  (headpose)[3].xyz*viewscale + eyeoffset*UNITIPD*viewscale;
-  rd = trcam[0].xyz*vspr.x + trcam[1].xyz*vspr.y + trcam[2].xyz*vspr.z;
+  rd = (trcam[0].xyz*vspr.x + trcam[1].xyz*vspr.y + trcam[2].xyz*vspr.z);
 }
 
 vec3 calcNormal( in int maplevel, in vec3 pos, in float t, in float px )
@@ -201,7 +203,7 @@ vec3 render( in vec2 p, in mat4 cam )
 
   // Ray origin and Ray direction derived from view matrix. 
   vec3 ro, rd;
-  vr_ray_projection(clipspace, cam, ro, rd);
+  vr_ray_projection(viewscale*clipspace, cam, ro, rd);
 
   // return(rd);
  // vec3  rd = normalize( (cam*vec4(clipspace,fle,0.0)).xyz );
@@ -263,7 +265,7 @@ vec3 render( in vec2 p, in mat4 cam )
     col += 8.0*vec3(0.8,0.9,1.0)*(0.2+0.8*occ)*(0.03+0.97*pow(fac,5.0))*smoothstep(0.0,0.1,ref.y )*softshadow( pos+0.01*nor, ref, 2.0 );
     //col = vec3(occ*occ);
     
-    col = mix( col, skycol, clamp(t/viewscale - viewscale, 0., 1.));
+    //col = mix( col, skycol, clamp(t/viewscale - viewscale, 0., 1.));
   }
 
   // gamma
