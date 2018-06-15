@@ -27,7 +27,7 @@ public:
 	
 	float velocityFactor = 1.0;
 	
-	const float scaling_rate = 1.02;
+	const float scaling_rate = 1.0 + 2e-2;
 	int w, a, s, d, q, e;
 	camera()
 	{
@@ -104,12 +104,18 @@ public:
 		
 		const float moveConst = .01;
 		if (q == 1)
-	  {
+		{
 			zoomLevel *= scaling_rate;
+			pos *= scaling_rate;
 		}
 		if (e == 1)
 		{
 			zoomLevel = glm::max(1.f, zoomLevel/scaling_rate);
+			// only move us back in if the zoomlevel is still decreasing
+			if (zoomLevel > 1.f + 1e-2)
+			{
+				pos /= scaling_rate;
+			}
 		}
 		
 		if (w == 1)

@@ -40,7 +40,7 @@ using namespace glm;
 #define FPSBUFSIZE 15
 
 // VR defaults
-#if 0
+#if 1
 #define FRAMEWIDTH  2160
 #define FRAMEHEIGHT 1200
 #else

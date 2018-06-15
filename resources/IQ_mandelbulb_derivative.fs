@@ -141,7 +141,7 @@ float intersect( in vec3 ro, in vec3 rd, out vec4 rescol, in float px, in ivec2 
   if( dis.y<0.0 )
     return -1.0;
   dis.x = max( dis.x, 0.0 );
-  dis.y = min( dis.y, 10.0 );
+  dis.y = min( dis.y, 10.0*zoomLevel );
 
   // raymarch fractal distance field
   vec4 trap;
@@ -200,7 +200,7 @@ vec3 calcNormal( in int maplvl, in vec3 pos, in float t, in float px )
 {
 //  return vec3(1.0, 0.0, 0.0);
   vec4 tmp;
-  vec2 eps = vec2( zoomLevel*0.25*px, 0.0 );
+  vec2 eps = vec2( 0.25*px/zoomLevel, 0.0 );
   return normalize( vec3(
         map(maplvl,pos+eps.xyy,tmp) - map(maplvl,pos-eps.xyy,tmp),
         map(maplvl,pos+eps.yxy,tmp) - map(maplvl,pos-eps.yxy,tmp),
@@ -292,7 +292,7 @@ vec3 render( in vec2 p, in mat4 cam )
 	if(doFog)
 	{
 		// add "hiding fog"
-		col = mix( col, skycol, clamp(t*zoomLevel - 1./zoomLevel, 0., 1.));
+		col = mix( col, skycol, clamp(t - 10., 0., 1.));
 	}
   }
   // gamma
