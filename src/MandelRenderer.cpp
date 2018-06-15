@@ -90,14 +90,14 @@ void MandelRenderer::render_internal(std::shared_ptr<Program> prog, glm::vec3 po
   glUniform1f(prog->getUniform("startOffset"), dat.map_start_offset);
   glUniform1f(prog->getUniform("fle"), dat.fle);
   glUniform1i(prog->getUniform("modulo"), dat.modulo);
-  glUniform1f(prog->getUniform("escapeFactor"), dat.escape_factor);
-  glUniform1f(prog->getUniform("mapResultFactor"), dat.map_result_factor);
   glUniform1f(prog->getUniform("time"), dat.time);
   glUniform1f(prog->getUniform("juliaFactor"), dat.juliaFactor);
   glUniform3fv(prog->getUniform("juliaPoint"), 1, (float*)&dat.juliaPoint);
   glUniform1i(prog->getUniform("mapIterCount"), dat.map_iter_count);
   glUniform3fv(prog->getUniform("camOrigin"), 1, glm::value_ptr(pos));
-  glUniform1i(prog->getUniform("exhaust"), dat.exhaust);
+  glUniform1i(prog->getUniform("exhaust"), !!dat.exhaust);
+  glUniform1i(prog->getUniform("movingJulia"), !!dat.movingJulia);
+  glUniform1i(prog->getUniform("doFog"), !!dat.doFog);
   
   glUniformMatrix4fv(prog->getUniform("view"), 1, GL_TRUE, glm::value_ptr(view));
   

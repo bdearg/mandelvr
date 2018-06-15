@@ -108,14 +108,14 @@ public:
     mandelshader->addUniform("modulo");
     mandelshader->addUniform("fle");
     mandelshader->addUniform("exhaust");
-    mandelshader->addUniform("escapeFactor");
-    mandelshader->addUniform("mapResultFactor");
     mandelshader->addUniform("mapIterCount");
     mandelshader->addUniform("startOffset");
     mandelshader->addUniform("bulbXfrm");
 	mandelshader->addUniform("time");
 	mandelshader->addUniform("juliaFactor");
 	mandelshader->addUniform("juliaPoint");
+	mandelshader->addUniform("movingJulia");
+	mandelshader->addUniform("doFog");
   }
 
   void keyCallback(GLFWwindow *window, int key, int scancode, int action, int mods)
@@ -447,12 +447,15 @@ public:
       ImGui::SliderInt("intersect step count", &mrender.data.intersect_step_count, 1, 1024);
       ImGui::SliderFloat("intersect step factor", &mrender.data.intersect_step_factor, 1e-20, 1.f, "%.3e", 1.5f);
       ImGui::SliderInt("Mandelbulb modulo", &mrender.data.modulo, 2, 32);
-      ImGui::SliderFloat("Mandelbulb escape factor", &mrender.data.escape_factor, .01, 10., "%.3f", 4.2f);
-      ImGui::SliderFloat("Mandelbulb map result factor", &mrender.data.map_result_factor, .01, 10., "%.3f", 4.2f);
       ImGui::SliderInt("Mandelbulb map iter count", &mrender.data.map_iter_count, 1, 32);
       ImGui::SliderFloat("fle", &mrender.data.fle, 0.1f, 15.f);
-	  ImGui::SliderFloat3("Julia Point", (float*)&mrender.data.juliaPoint, -1., 1.);
 	  ImGui::SliderFloat("julia Factor", &mrender.data.juliaFactor, 0.f, 1.f);
+	  ImGui::Checkbox("MovingJulia", (bool*)&mrender.data.movingJulia);
+	  if (!mrender.data.movingJulia)
+	  {
+		  ImGui::SliderFloat3("Julia Point", (float*)&mrender.data.juliaPoint, -1., 1.);
+	  }
+	  ImGui::Checkbox("Do Fog", (bool*)&mrender.data.doFog);
       
       ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
     }

@@ -34,16 +34,26 @@ struct MandelRenderer
     GLfloat fle = 1.;
     
     GLint modulo = 8;
-    GLfloat escape_factor = 1.;
-    GLfloat map_result_factor = 1.;
+	// the "Base" level of mapping for viewing the bulb from a distance
     GLint map_iter_count = 4;
+
+	// how much to lerp between a sample and the julia point, for producing
+	// hybridized fractals
 	GLfloat juliaFactor = 0.;
 
+	// the point 
 	ImVec4 juliaPoint = ImVec4(0., 0., 0., 0.);
     
     // when set, the renderer will "guess" what's at the end
     // of a raymarching
     GLboolean exhaust = 0;
+
+	// when set, the "Julia Point" will automatically undulate over time
+	// must be unset in order to have the julia point carry an effect
+	GLboolean movingJulia = 1;
+	
+	// when set, will cover distant parts of the fractal in fog
+	GLboolean doFog = 0;
 
 	GLfloat time = 0.;
     

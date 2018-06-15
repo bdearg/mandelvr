@@ -1,7 +1,7 @@
 #version 430 core
 precision highp float;
 
-#define AA 1
+#define AA 2
 //#define STEPLENGTH .25
 #define STEPLENGTH .25
 #define STEPCOUNT 128
@@ -40,15 +40,15 @@ uniform int modulo;
 
 uniform float fle;
 
-uniform float escapeFactor;
-uniform float mapResultFactor;
 uniform int mapIterCount;
 uniform float juliaFactor;
 uniform vec3 juliaPoint;
 
 uniform float time;
 
+uniform bool movingJulia;
 uniform bool exhaust;
+uniform bool doFog;
 
 out vec4 color;
 
@@ -105,8 +105,12 @@ float map(in int mapsteps, in vec3 p, out vec4 resColor )
   for( int i=0; i<maxMapIter; i++ )
   {
 	//julia bulb
-	vec3 jp = vec3(.4*cos(.25*time+1.), .2*sin(time+.2)+.7*sin(time*.33+0.5), .7*cos(time*.33+.05));
-	//vec3 jp = juliaPoint;
+	
+	vec3 jp = juliaPoint;
+	if(movingJulia)
+	{
+	  jp = vec3(.4*cos(.25*time+1.), .2*sin(time+.2)+.7*sin(time*.33+0.5), .7*cos(time*.33+.05));
+	}
     dz = modulo*pow(sqrt(m),modulo-1.)*dz + 1.0;
     //dz = 8.0*pow(m,3.5)*dz + 1.0;
 
@@ -118,13 +122,13 @@ float map(in int mapsteps, in vec3 p, out vec4 resColor )
     trap = min( trap, vec4(abs(w), m) );
 
     m = dot(w,w);
-    if( m > modulo*modulo*escapeFactor )
+    if( m > modulo*modulo )
       break;
   }
 
   resColor = vec4(m,trap.yzw);
 
-  return mapResultFactor*0.25*log(m)*sqrt(m)/dz;
+  return 0.25*log(m)*sqrt(m)/dz;
 
 }
 
@@ -143,8 +147,7 @@ float intersect( in vec3 ro, in vec3 rd, out vec4 rescol, in float px, in ivec2 
   vec4 trap;
   int i;
 
-  // Something goes wrong here if the skybox edge clips the bulb
-  float t = dis.x + imageLoad(inputDepthBuffer, coord).r;
+  float t = dis.x;
 
   for( i=0; i<intersectStepCount; i++ )
   {
@@ -154,7 +157,7 @@ float intersect( in vec3 ro, in vec3 rd, out vec4 rescol, in float px, in ivec2 
 
     float th = intersectThreshold*px*t;
 
-	int imp = int(12 * (1./zoomLevel - t));
+	int imp = int((4*(2 - log(zoomLevel)) - 8*t));
 	g = imp;
 
 	float h = map(imp, pos, trap );
@@ -169,7 +172,6 @@ float intersect( in vec3 ro, in vec3 rd, out vec4 rescol, in float px, in ivec2 
 
   if ( i >= intersectStepCount && !exhaust) // Leave some for the next step
   {
-    //imageStore(outputDepthBuffer, coord , vec4(abs(t-dis.x), 0., 0., 0.));
     discard;
   }
   else if( t<dis.y ) // Either a hit, or enough distance traveled
@@ -289,8 +291,11 @@ vec3 render( in vec2 p, in mat4 cam )
     //col += 8.0*vec3(0.8,0.9,1.0)*(0.2+0.8*occ)*(0.03+0.97*pow(fac,5.0))*smoothstep(0.0,0.1,ref.y )*softshadow( pos+0.01*nor, ref, 2.0 );
     //col = vec3(occ*occ);
 
-	// add "hiding fog"
-	col = mix( col, skycol, clamp(t/zoomLevel - zoomLevel, 0., 1.));
+	if(doFog)
+	{
+		// add "hiding fog"
+		col = mix( col, skycol, clamp(t/zoomLevel - zoomLevel, 0., 1.));
+	}
   }
   // gamma
   return sqrt( col );
