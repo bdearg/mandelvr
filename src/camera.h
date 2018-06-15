@@ -27,7 +27,7 @@ public:
 	
 	float velocityFactor = 1.0;
 	
-	const float scaling_rate = 0.98;
+	const float scaling_rate = 1.02;
 	int w, a, s, d, q, e;
 	camera()
 	{
@@ -109,7 +109,7 @@ public:
 		}
 		if (e == 1)
 		{
-			zoomLevel = glm::min(1.f, zoomLevel/scaling_rate);
+			zoomLevel = glm::max(1.f, zoomLevel/scaling_rate);
 		}
 		
 		if (w == 1)
@@ -128,8 +128,8 @@ public:
 			rot.y -= 0.01;
 	  */
 
-		pos += zoomLevel*velocityFactor*xVel*xMovement();
-		pos += zoomLevel*velocityFactor*zVel*zMovement();
+		pos += velocityFactor*xVel*xMovement();
+		pos += velocityFactor*zVel*zMovement();
 
 		return getView();
 	}

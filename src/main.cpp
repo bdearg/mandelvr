@@ -40,7 +40,7 @@ using namespace glm;
 #define FPSBUFSIZE 15
 
 // VR defaults
-#if 1
+#if 0
 #define FRAMEWIDTH  2160
 #define FRAMEHEIGHT 1200
 #else
@@ -495,7 +495,7 @@ public:
       ImGui::Text("Position: X: %0.2f, Y: %0.2f, Z: %0.2f", mycam.pos.x, mycam.pos.y, mycam.pos.z);
       
       ImGui::Text("Zoom Level:");
-      ImGui::SameLine(); ImGui::ProgressBar(-log(mycam.zoomLevel)/1e1);
+      ImGui::SameLine(); ImGui::ProgressBar(log(mycam.zoomLevel)/1e1);
       
       if(hud_countdown)
       {

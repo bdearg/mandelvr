@@ -1,7 +1,7 @@
 #version 430 core
 precision highp float;
 
-#define AA 2
+#define AA 1
 //#define STEPLENGTH .25
 #define STEPLENGTH .25
 #define STEPCOUNT 128
@@ -137,7 +137,7 @@ float intersect( in vec3 ro, in vec3 rd, out vec4 rescol, in float px, in ivec2 
   float res = -1.0;
 
   // bounding sphere
-  vec2 dis = isphere( vec4(0.0,0.0,0.0,1.25), ro, rd );
+  vec2 dis = isphere( vec4(0.0,0.0,0.0,1.25*zoomLevel), ro, rd );
   if( dis.y<0.0 )
     return -1.0;
   dis.x = max( dis.x, 0.0 );
@@ -151,19 +151,17 @@ float intersect( in vec3 ro, in vec3 rd, out vec4 rescol, in float px, in ivec2 
 
   for( i=0; i<intersectStepCount; i++ )
   {
-    vec3 pos = ro + rd*t; //when i==0 pos is on the surface!?!?!
-	
-	vec3 viewdir = pos - camOrigin;
+    vec3 pos = (ro + rd*t)/zoomLevel; //when i==0 pos is on the surface!?!?!
 
     float th = intersectThreshold*px*t;
 
-	int imp = int((4*(2 - log(zoomLevel)) - 8*t));
-	g = imp;
+    int imp = int((4*(2 + log(zoomLevel)) - 8*t));
+    g = imp;
 
-	float h = map(imp, pos, trap );
+    float h = map(imp, pos, trap );
     if( t>dis.y || h<th ) 
 		break;
-    t += intersectStepFactor*h;
+    t += zoomLevel*intersectStepFactor*h;
   }
 
   // this also trips if a ray goes parallel to an edge, causing
@@ -224,7 +222,7 @@ vec3 render( in vec2 p, in mat4 cam )
   // to
   // (-1, -1) -> (1, 1)
   float smallestaxis = min(resolution.x, resolution.y);
-  vec2  sp = (-resolution.xy + 2.0*p)*zoomLevel / smallestaxis;
+  vec2  sp = (-resolution.xy + 2.0*p) / smallestaxis;
   float px = 2.0/(smallestaxis*fle);
 
   // extract translation component of view matrix
@@ -262,7 +260,7 @@ vec3 render( in vec2 p, in mat4 cam )
     //col = vec3(0.1);
 
     // lighting terms
-    vec3 pos = ro + t*rd;
+    vec3 pos = (ro + t*rd)/zoomLevel;
     vec3 nor = calcNormal( g, pos, t, px );
     vec3 hal = normalize( light1-rd);
     vec3 ref = reflect( rd, nor );
@@ -294,7 +292,7 @@ vec3 render( in vec2 p, in mat4 cam )
 	if(doFog)
 	{
 		// add "hiding fog"
-		col = mix( col, skycol, clamp(t/zoomLevel - zoomLevel, 0., 1.));
+		col = mix( col, skycol, clamp(t*zoomLevel - 1./zoomLevel, 0., 1.));
 	}
   }
   // gamma
