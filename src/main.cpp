@@ -40,7 +40,7 @@ using namespace glm;
 #define FPSBUFSIZE 15
 
 // VR defaults
-#if 0
+#if 1
 #define FRAMEWIDTH  2160
 #define FRAMEHEIGHT 1200
 #else
@@ -113,9 +113,9 @@ public:
     mandelshader->addUniform("mapIterCount");
     mandelshader->addUniform("startOffset");
     mandelshader->addUniform("bulbXfrm");
-    mandelshader->addUniform("time");
-    mandelshader->addUniform("juliaFactor");
-    mandelshader->addUniform("juliaPoint");
+	mandelshader->addUniform("time");
+	mandelshader->addUniform("juliaFactor");
+	mandelshader->addUniform("juliaPoint");
   }
 
   void keyCallback(GLFWwindow *window, int key, int scancode, int action, int mods)
@@ -378,6 +378,7 @@ public:
     auto this_update = std::chrono::steady_clock::now();
     auto update_delay = this_update - last_update;
     mycam.process(std::chrono::duration_cast<std::chrono::milliseconds>(update_delay).count()/1000.);
+	last_update = this_update;
     if(cubemode)
     {
       renderSkybox();
@@ -393,7 +394,10 @@ public:
   
   void update()
   {
-    mrender.data.time = glfwGetTime();
+    // use "zoom level" to determine level of detail
+   // mrender.data.map_iter_count = static_cast<int>(4-(log(mycam.zoomLevel)));
+    //marcher->setDepth(static_cast<int>(4-(log(mycam.zoomLevel))));
+	  mrender.data.time = glfwGetTime();
   }
   
   void createCCStencil(int width, int height)
@@ -447,10 +451,8 @@ public:
       ImGui::SliderFloat("Mandelbulb map result factor", &mrender.data.map_result_factor, .01, 10., "%.3f", 4.2f);
       ImGui::SliderInt("Mandelbulb map iter count", &mrender.data.map_iter_count, 1, 32);
       ImGui::SliderFloat("fle", &mrender.data.fle, 0.1f, 15.f);
-      ImGui::SliderFloat("fle", &mrender.data.fle, 0.1f, 15.f);
-	    ImGui::SliderFloat3("Julia Point", (float*)&mrender.data.juliaPoint, -1., 1.);
-	    ImGui::SliderFloat("julia Factor", &mrender.data.juliaFactor, 0.f, 1.f);
-      
+	  ImGui::SliderFloat3("Julia Point", (float*)&mrender.data.juliaPoint, -1., 1.);
+	  ImGui::SliderFloat("julia Factor", &mrender.data.juliaFactor, 0.f, 1.f);
       
       ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
     }

@@ -64,7 +64,7 @@ void MandelRenderer::render_internal(std::shared_ptr<Program> prog, glm::vec3 po
   glViewport(0, 0, size.x, size.y);
   
   glm::mat4 view = glm::lookAt(pos, pos + forward, up);
-  glClearColor(0.f, 0.f, 0.f, 0.0f);
+  glClearColor(0.f, 1.f, 0.f, 1.0f);
   glClear(GL_COLOR_BUFFER_BIT);
   
   prog->bind();
@@ -75,9 +75,6 @@ void MandelRenderer::render_internal(std::shared_ptr<Program> prog, glm::vec3 po
   glBindImageTexture(1, dat.depthbufferOutput, 0, GL_TRUE, dat.direction, GL_WRITE_ONLY, GL_R32F);
   glUniform1i(prog->getUniform("outputDepthBuffer"), 1);
   
-  // We might be able to do a uniform buffer struct, but that limits
-  // free edits/experimentation to the data passed for now, and it
-  // doesn't seem to be a bottleneck right now.
   glUniform2f(prog->getUniform("resolution"), static_cast<float>(size.x), static_cast<float>(size.y));
   glUniform1f(prog->getUniform("intersectThreshold"), dat.intersect_threshold);
   glUniform1i(prog->getUniform("intersectStepCount"), dat.intersect_step_count);
